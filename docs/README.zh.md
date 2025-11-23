@@ -1,6 +1,13 @@
 # Xulcan
 
-可用语言：[英语](../README.md) · [西班牙语](README.es.md) · [法语](README.fr.md) · [俄语](README.ru.md) · [阿拉伯语](README.ar.md) · [中文（普通话）](README.zh.md)
+<p align="center">
+   <a href="../README.md">英语</a>
+   · <a href="README.es.md">西班牙语</a>
+   · <a href="README.fr.md">法语</a>
+   · <a href="README.ru.md">俄语</a>
+   · <a href="README.ar.md">阿拉伯语</a>
+   · <a href="README.zh.md">中文（普通话）</a>
+</p>
 
 **Xulcan 是一个遵循 “API 优先（API-first）” 理念的后端框架，用于构建、运行和部署先进的人工智能智能体（AI Agents）。**
 

@@ -1,6 +1,13 @@
 # Xulcan
 
-Доступные языки: [Английский](../README.md) · [Испанский](README.es.md) · [Французский](README.fr.md) · [Русский](README.ru.md) · [Арабский](README.ar.md) · [Китайский (мандарин)](README.zh.md)
+<p align="center">
+   <a href="../README.md">Английский</a>
+   · <a href="README.es.md">Испанский</a>
+   · <a href="README.fr.md">Французский</a>
+   · <a href="README.ru.md">Русский</a>
+   · <a href="README.ar.md">Арабский</a>
+   · <a href="README.zh.md">Китайский (мандарин)</a>
+</p>
 
 **Xulcan — backend-фреймворк в парадигме API-first для создания, управления и развертывания продвинутых ИИ-агентов.**
 

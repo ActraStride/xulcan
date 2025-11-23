@@ -1,6 +1,13 @@
 # Xulcan
 
-Langues disponibles: [Anglais](../README.md) · [Espagnol](README.es.md) · [Français](README.fr.md) · [Russe](README.ru.md) · [Arabe](README.ar.md) · [Chinois (mandarin)](README.zh.md)
+<p align="center">
+	<a href="../README.md">Anglais</a>
+	· <a href="README.es.md">Espagnol</a>
+	· <a href="README.fr.md">Français</a>
+	· <a href="README.ru.md">Russe</a>
+	· <a href="README.ar.md">Arabe</a>
+	· <a href="README.zh.md">Chinois (mandarin)</a>
+</p>
 
 **Xulcan est un framework backend « API-first » pour créer, exploiter et déployer des agents d'IA avancés.**
 

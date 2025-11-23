@@ -1,6 +1,13 @@
 # Xulcan
 
-اللغات المتاحة: [الإنجليزية](../README.md) · [الإسبانية](README.es.md) · [الفرنسية](README.fr.md) · [الروسية](README.ru.md) · [العربية](README.ar.md) · [الصينية (الماندرين)](README.zh.md)
+<p align="center">
+   <a href="../README.md">الإنجليزية</a>
+   · <a href="README.es.md">الإسبانية</a>
+   · <a href="README.fr.md">الفرنسية</a>
+   · <a href="README.ru.md">الروسية</a>
+   · <a href="README.ar.md">العربية</a>
+   · <a href="README.zh.md">الصينية (الماندرين)</a>
+</p>
 
 **Xulcan هو إطار خلفي يعتمد نهج «API أولاً» لبناء وتشغيل ونشر وكلاء ذكاء اصطناعي متقدمين.**
 
