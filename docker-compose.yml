@@ -1,0 +1,179 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Base de Datos PostgreSQL
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: xulcan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xulcan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-xulcan_db}
+      # Optimizaciones para desarrollo (UTF-8 por defecto)
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xulcan} -d ${POSTGRES_DB:-xulcan_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - xulcan-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================================
+  # Redis (Memoria Persistente para Agentes)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: xulcan-redis
+    restart: unless-stopped
+    # CONFIGURACIÓN CORREGIDA:
+    # Eliminamos 'maxmemory' y 'allkeys-lru' para evitar que se borre el chat.
+    # Mantenemos 'appendonly yes' para que los datos sobrevivan a reinicios.
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-dev_secret}
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-dev_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - xulcan-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================================
+  # API Core (FastAPI + Uvicorn)
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xulcan-core
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      # Conexiones internas
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-xulcan}:${POSTGRES_PASSWORD:-dev_secret}@postgres:5432/${POSTGRES_DB:-xulcan_db}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_secret}@redis:6379/0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      # ✅ LA CEREZA DEL PASTEL: Asegura imports absolutos correctos
+      - PYTHONPATH=/app
+    volumes:
+      - ./app:/app/app:rw
+      - ./tests:/app/tests:rw
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - xulcan-net
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level ${LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================================
+  # PgAdmin (Herramienta Visual - Opcional)
+  # Solo inicia con: docker-compose --profile dev up
+  # ============================================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: xulcan-pgadmin
+    restart: unless-stopped
+    profiles: ["dev"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@xulcan.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      - postgres
+    networks:
+      - xulcan-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ============================================================================
+  # Redis Commander (Herramienta Visual - Opcional)
+  # Solo inicia con: docker-compose --profile dev up
+  # ============================================================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: xulcan-redis-ui
+    restart: unless-stopped
+    profiles: ["dev"]
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-dev_secret}
+    ports:
+      - "${REDIS_UI_PORT:-8081}:8081"
+    depends_on:
+      - redis
+    networks:
+      - xulcan-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ==============================================================================
+# Redes
+# ==============================================================================
+networks:
+  xulcan-net:
+    driver: bridge
+    name: xulcan-network
+
+# ==============================================================================
+# Volúmenes Persistentes
+# ==============================================================================
+volumes:
+  postgres_data:
+    name: xulcan-postgres-data
+  redis_data:
+    name: xulcan-redis-data
+  pgadmin_data:
+    name: xulcan-pgadmin-data
