@@ -19,12 +19,12 @@ fi
 
 # Build images (important after dependency changes)
 echo "🏗️  Checking/Building Docker images..."
-docker-compose build
+docker compose build
 
 # Start the entire stack and wait for dependencies to report healthy
 # depends_on/service_healthy takes care of waiting for Postgres and Redis
 echo "▶️  Bringing services online..."
-docker-compose up -d
+docker compose up -d
 
 echo "✅ Xulcan is up and running!"
 echo ""
