@@ -1,6 +1,5 @@
 # Xulcan
 
-
 **Xulcan es un framework de backend, "API-first", para construir, gestionar y desplegar agentes de IA avanzados.**
 
 Su misión es abstraer la complejidad de la orquestación de LLMs, la gestión de memoria y el uso de herramientas, permitiendo a los desarrolladores integrar capacidades de razonamiento complejo en sus aplicaciones a través de una configuración declarativa y una API REST robusta.
@@ -23,40 +22,63 @@ Creemos en la **Configuración como Código** y en un enfoque **API-First** para
 
 Xulcan está siendo diseñado como un servicio alojado que interactúa con las aplicaciones cliente a través de APIs.
 
-1.  **Dashboard de Xulcan:** Una interfaz web central donde los desarrolladores definen y gestionan sus recursos:
-    *   **Agentes:** Se definen con una personalidad (`system_prompt`), un modelo de LLM y un conjunto de capacidades.
-    *   **Herramientas (Tools):** Se registran herramientas internas (ej. `web_search`) y externas (APIs del cliente), incluyendo su esquema y método de autenticación.
-    *   **Memoria:** Se configuran las bases de conocimiento (RAG) que los agentes pueden consultar.
+1.  **Dashboard de Xulcan:** Interfaz web donde se definen Agentes, Herramientas y Memorias.
+2.  **Núcleo Agéntico (El Motor):**
+    *   **`LLMClient`:** Adaptadores agnósticos (Gemini, OpenAI, Anthropic).
+    *   **`ToolExecutor`:** Ejecución segura de herramientas.
+    *   **`MemoryManager`:** Memoria a corto (Redis) y largo plazo (Faiss).
+    *   **`Executor`:** Orquestación del razonamiento (`Chain of Thought`).
+3.  **Integración del Cliente:** Modelo seguro y simple vía API REST.
 
-2.  **Núcleo Agéntico (El Motor):** El backend de Xulcan, que incluye:
-    *   Un **`LLMClient` agnóstico** con adaptadores para múltiples proveedores (Gemini, OpenAI, Anthropic).
-    *   Un **`ToolExecutor`** que ejecuta herramientas internas o llama de forma segura a las APIs externas configuradas.
-    *   Un **`MemoryManager`** para la memoria a corto plazo (Redis) y largo plazo (Faiss).
-    *   Un **`Executor`** que orquesta el ciclo de razonamiento (`Chain of Thought`).
+---
 
-3.  **Integración del Cliente:** El desarrollador integra su aplicación con Xulcan a través de un modelo seguro y simple, sin necesidad de escribir lógica de orquestación compleja en su propio backend.
+## 🛠 Flujo de Desarrollo y Contribución
+
+Para mantener la estabilidad del sistema y organizar las releases, utilizamos **Git Flow**.
+
+### Estrategia de Ramas
+*   **`main`:** 🔴 **Producción.** Contiene únicamente código estable, versionado y listo para despliegue. Nadie hace commit directo aquí.
+*   **`develop`:** 🟡 **Integración (Next Release).** Es la rama de trabajo principal. Aquí se fusionan todas las nuevas funcionalidades para probarlas en conjunto antes de una release.
+*   **`feature/*`:** 🟢 **Desarrollo.** Ramas temporales para nuevas funcionalidades (ej. `feature/infra-logging`).
+    *   Nacen de: `develop`
+    *   Se fusionan en: `develop`
+*   **`hotfix/*`:** 🚑 **Urgencias.** Para errores críticos en producción. Nacen de `main` y se fusionan en `main` y `develop`.
+
+### Convención de Commits
+Seguimos [Conventional Commits](https://www.conventionalcommits.org/) para mantener un historial semántico:
+*   `feat:` Nueva funcionalidad.
+*   `fix:` Corrección de error.
+*   `chore:` Mantenimiento/configuración.
+*   `refactor:` Cambios de código que no alteran la funcionalidad.
+
+### Política de Pull Requests (PR) & Merge
+1.  **Feature -> Develop:**
+    *   Se usa **Squash and Merge**.
+    *   *Objetivo:* Que cada funcionalidad aparezca como un solo commit limpio en el historial de `develop`.
+2.  **Develop -> Main (Release):**
+    *   Se usa **Merge Commit** (Create a merge commit).
+    *   *Objetivo:* Mantener la historia de que un grupo de funcionalidades se liberaron juntas como una versión (ej. v0.1.0).
+3.  **Tests:** El CI (Docker build + Pytest) debe pasar obligatoriamente antes de cualquier merge.
+
+---
 
 ## Roadmap del Proyecto (Hasta Mayo 2026)
 
-Este proyecto se desarrollará en fases incrementales, centrándose en construir una base sólida.
-
 ### Trimestre 1: La Cimentación y el Primer Agente
+*   **[x] Infraestructura Base:** Dockerización, Postgres, Redis y estructura del proyecto.
 *   **[ ] Mes 1:** Diseño del núcleo, investigación de APIs de LLMs, implementación del `AgentManager` y el primer `LLMAdapter`.
-*   **[ ] Mes 2:** Implementación del sistema de **Herramientas** (`ToolRegistry`, `ToolExecutor`) y el ciclo de razonamiento de un solo paso.
+*   **[ ] Mes 2:** Implementación del sistema de **Herramientas** (`ToolRegistry`, `ToolExecutor`).
 *   **[ ] Mes 3:** Integración de la **memoria a corto plazo** (Redis) y el segundo `LLMAdapter`.
 
 ### Trimestre 2: Capacidades Avanzadas y Ecosistema
-*   **[ ] Mes 4:** Implementación de la **memoria a largo plazo (RAG)** con Faiss y el tercer `LLMAdapter`.
-*   **[ ] Mes 5:** Implementación del **razonamiento multi-paso (Chain of Thought)** y la infraestructura para tareas en segundo plano (Celery).
-*   **[ ] Mes 6:** Creación del **Dashboard de Administración MVP** y "hardening" de la plataforma (seguridad, logging, documentación).
+*   **[ ] Mes 4:** Memoria a largo plazo (RAG) y tercer `LLMAdapter`.
+*   **[ ] Mes 5:** Razonamiento multi-paso (Chain of Thought) y Workers (Celery).
+*   **[ ] Mes 6:** Dashboard MVP y hardening (seguridad, observabilidad).
 
 ## Estado Actual
 
-El proyecto se encuentra en la fase inicial de diseño y configuración. El repositorio está vacío, pero la planificación conceptual está completa. ¡La construcción comienza ahora!
-
-## Cómo Contribuir (Futuro)
-
-Este es actualmente un proyecto personal, pero con la ambición de convertirse en código abierto. La información sobre cómo contribuir se añadirá una vez que el núcleo del proyecto esté más maduro.
+🚀 **Fase de Construcción Activa.**
+La infraestructura base (Docker, BD, Cache) está operativa. Actualmente se está implementando el sistema de **Logging Estructurado** y Observabilidad.
 
 ---
 
