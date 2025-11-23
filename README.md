@@ -1,85 +1,87 @@
 # Xulcan
 
-**Xulcan es un framework de backend, "API-first", para construir, gestionar y desplegar agentes de IA avanzados.**
+Available languages: [English](README.md) · [Español](docs/README.es.md)
 
-Su misión es abstraer la complejidad de la orquestación de LLMs, la gestión de memoria y el uso de herramientas, permitiendo a los desarrolladores integrar capacidades de razonamiento complejo en sus aplicaciones a través de una configuración declarativa y una API REST robusta.
+**Xulcan is an API-first backend framework for building, operating, and deploying advanced AI agents.**
 
-Este proyecto es de código abierto, pero se está construyendo como una plataforma personal con la ambición de convertirse en un ecosistema completo para el desarrollo agéntico.
+Its mission is to abstract the complexity of LLM orchestration, memory management, and tool usage so developers can integrate complex reasoning capabilities into their applications through declarative configuration and a robust REST API.
 
----
-
-## Visión y Filosofía
-
-La inspiración central de Xulcan es la metáfora de un **compás de arquitecto con un adaptador universal**. Este símbolo representa nuestros principios de diseño:
-
-*   **Precisión:** Transformar el lenguaje natural ambiguo en acciones estructuradas y precisas.
-*   **Modularidad:** Construir agentes a partir de componentes conectables (`pluggable`) como "herramientas" y "memorias".
-*   **Orquestación:** Conectar el contexto (el punto fijo) con la acción (el punto móvil) a través de un proceso de razonamiento.
-
-Creemos en la **Configuración como Código** y en un enfoque **API-First** para garantizar sistemas de IA desacoplados, mantenibles y escalables.
-
-## Arquitectura Conceptual
-
-Xulcan está siendo diseñado como un servicio alojado que interactúa con las aplicaciones cliente a través de APIs.
-
-1.  **Dashboard de Xulcan:** Interfaz web donde se definen Agentes, Herramientas y Memorias.
-2.  **Núcleo Agéntico (El Motor):**
-    *   **`LLMClient`:** Adaptadores agnósticos (Gemini, OpenAI, Anthropic).
-    *   **`ToolExecutor`:** Ejecución segura de herramientas.
-    *   **`MemoryManager`:** Memoria a corto (Redis) y largo plazo (Faiss).
-    *   **`Executor`:** Orquestación del razonamiento (`Chain of Thought`).
-3.  **Integración del Cliente:** Modelo seguro y simple vía API REST.
+The project is open source, yet it is being crafted as a personal platform with the ambition of growing into a complete ecosystem for agentic development.
 
 ---
 
-## 🛠 Flujo de Desarrollo y Contribución
+## Vision and Philosophy
 
-Para mantener la estabilidad del sistema y organizar las releases, utilizamos **Git Flow**.
+Xulcan draws its inspiration from the metaphor of an **architect's compass with a universal adapter**. This symbol conveys our design principles:
 
-### Estrategia de Ramas
-*   **`main`:** 🔴 **Producción.** Contiene únicamente código estable, versionado y listo para despliegue. Nadie hace commit directo aquí.
-*   **`develop`:** 🟡 **Integración (Next Release).** Es la rama de trabajo principal. Aquí se fusionan todas las nuevas funcionalidades para probarlas en conjunto antes de una release.
-*   **`feature/*`:** 🟢 **Desarrollo.** Ramas temporales para nuevas funcionalidades (ej. `feature/infra-logging`).
-    *   Nacen de: `develop`
-    *   Se fusionan en: `develop`
-*   **`hotfix/*`:** 🚑 **Urgencias.** Para errores críticos en producción. Nacen de `main` y se fusionan en `main` y `develop`.
+* **Precision:** Turning ambiguous natural language into structured, accurate actions.
+* **Modularity:** Composing agents from pluggable components such as tools and memories.
+* **Orchestration:** Connecting context (the fixed point) with action (the moving point) through a deliberate reasoning process.
 
-### Convención de Commits
-Seguimos [Conventional Commits](https://www.conventionalcommits.org/) para mantener un historial semántico:
-*   `feat:` Nueva funcionalidad.
-*   `fix:` Corrección de error.
-*   `chore:` Mantenimiento/configuración.
-*   `refactor:` Cambios de código que no alteran la funcionalidad.
+We believe in **Configuration as Code** and an **API-first** mindset to guarantee decoupled, maintainable, and scalable AI systems.
 
-### Política de Pull Requests (PR) & Merge
-1.  **Feature -> Develop:**
-    *   Se usa **Squash and Merge**.
-    *   *Objetivo:* Que cada funcionalidad aparezca como un solo commit limpio en el historial de `develop`.
-2.  **Develop -> Main (Release):**
-    *   Se usa **Merge Commit** (Create a merge commit).
-    *   *Objetivo:* Mantener la historia de que un grupo de funcionalidades se liberaron juntas como una versión (ej. v0.1.0).
-3.  **Tests:** El CI (Docker build + Pytest) debe pasar obligatoriamente antes de cualquier merge.
+## Conceptual Architecture
+
+Xulcan is being designed as a managed service that interacts with client applications via APIs.
+
+1. **Xulcan Dashboard:** Web interface where Agents, Tools, and Memories are defined.
+2. **Agentic Core (The Engine):**
+   * **`LLMClient`:** Agnostic adapters (Gemini, OpenAI, Anthropic).
+   * **`ToolExecutor`:** Safe tool execution.
+   * **`MemoryManager`:** Short-term (Redis) and long-term (Faiss) memory.
+   * **`Executor`:** Reasoning orchestration (Chain of Thought).
+3. **Client Integration:** Secure and simple interaction through a REST API.
 
 ---
 
-## Roadmap del Proyecto (Hasta Mayo 2026)
+## 🛠 Development and Contribution Flow
 
-### Trimestre 1: La Cimentación y el Primer Agente
-*   **[x] Infraestructura Base:** Dockerización, Postgres, Redis y estructura del proyecto.
-*   **[ ] Mes 1:** Diseño del núcleo, investigación de APIs de LLMs, implementación del `AgentManager` y el primer `LLMAdapter`.
-*   **[ ] Mes 2:** Implementación del sistema de **Herramientas** (`ToolRegistry`, `ToolExecutor`).
-*   **[ ] Mes 3:** Integración de la **memoria a corto plazo** (Redis) y el segundo `LLMAdapter`.
+To preserve system stability and manage releases, we follow **Git Flow**.
 
-### Trimestre 2: Capacidades Avanzadas y Ecosistema
-*   **[ ] Mes 4:** Memoria a largo plazo (RAG) y tercer `LLMAdapter`.
-*   **[ ] Mes 5:** Razonamiento multi-paso (Chain of Thought) y Workers (Celery).
-*   **[ ] Mes 6:** Dashboard MVP y hardening (seguridad, observabilidad).
+### Branch Strategy
+* **`main`:** 🔴 **Production.** Only stable, versioned, deployment-ready code lives here. No one commits directly to this branch.
+* **`develop`:** 🟡 **Integration (Next Release).** The primary working branch where new features merge and are validated together before a release.
+* **`feature/*`:** 🟢 **Development.** Temporary branches for new functionality (for example, `feature/infra-logging`).
+  * Branches from: `develop`
+  * Merges into: `develop`
+* **`hotfix/*`:** 🚑 **Emergency Fixes.** Critical production fixes. They branch from `main` and merge back into both `main` and `develop`.
 
-## Estado Actual
+### Commit Convention
+We follow [Conventional Commits](https://www.conventionalcommits.org/) to keep a semantic history:
+* `feat:` New functionality.
+* `fix:` Bug fix.
+* `chore:` Maintenance or configuration updates.
+* `refactor:` Non-functional changes to the code.
 
-🚀 **Fase de Construcción Activa.**
-La infraestructura base (Docker, BD, Cache) está operativa. Actualmente se está implementando el sistema de **Logging Estructurado** y Observabilidad.
+### Pull Request & Merge Policy
+1. **Feature -> Develop:**
+   * Use **Squash and Merge**.
+   * *Goal:* Each feature appears as a single, clean commit in the `develop` history.
+2. **Develop -> Main (Release):**
+   * Use **Merge Commit** (Create a merge commit).
+   * *Goal:* Preserve the narrative that a bundle of features shipped together as a version (for example, v0.1.0).
+3. **Tests:** CI (Docker build + Pytest) must pass before any merge.
 
 ---
 
-*Este documento sirve como la "Estrella Polar" para el desarrollo de Xulcan. Todas las decisiones técnicas y de producto deben alinearse con la visión y la arquitectura aquí descritas.*
+## Project Roadmap (Through May 2026)
+
+### Quarter 1: Foundation and First Agent
+* **[x] Base Infrastructure:** Dockerization, Postgres, Redis, and project scaffolding.
+* **[ ] Month 1:** Core design, LLM API research, `AgentManager`, and the first `LLMAdapter`.
+* **[ ] Month 2:** Tooling system (`ToolRegistry`, `ToolExecutor`).
+* **[ ] Month 3:** Short-term memory integration (Redis) and the second `LLMAdapter`.
+
+### Quarter 2: Advanced Capabilities and Ecosystem
+* **[ ] Month 4:** Long-term memory (RAG) and a third `LLMAdapter`.
+* **[ ] Month 5:** Multi-step reasoning (Chain of Thought) and Workers (Celery).
+* **[ ] Month 6:** Dashboard MVP and hardening (security, observability).
+
+## Current Status
+
+🚀 **Active Build Phase.**
+Base infrastructure (Docker, database, cache) is operational. Structured logging and observability are currently being implemented.
+
+---
+
+*This document is the North Star for Xulcan's development. Every technical and product decision should align with the vision and architecture described here.*
