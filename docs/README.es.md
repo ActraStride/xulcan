@@ -1,6 +1,6 @@
 # Xulcan
 
-Idiomas disponibles: [English](../README.md) · [Español](README.es.md)
+Idiomas disponibles: [English](../README.md) · [Español](README.es.md) · [Francés](README.fr.md) · [Ruso](README.ru.md) · [Árabe](README.ar.md) · [Chino (Mandarín)](README.zh.md)
 
 
 **Xulcan es un framework de backend, "API-first", para construir, gestionar y desplegar agentes de IA avanzados.**
