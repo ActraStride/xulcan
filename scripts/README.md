@@ -1,11 +1,11 @@
-# Xulcan - Scripts de Utilidades
+# Xulcan - Utility Scripts
 
-Este directorio contiene scripts para agilizar el flujo de desarrollo.
-Asegúrate de darles permisos de ejecución: `chmod +x scripts/*.sh`
+This directory contains helper scripts that streamline common development tasks.
+Grant execution permissions if needed: `chmod +x scripts/*.sh`
 
-## Uso
+## Usage
 
-### 🚀 Iniciar entorno (Dev)
-Levanta la base de datos, Redis y la API con *hot-reload*.
+### 🚀 Start development stack
+Boots Postgres, Redis, and the API with hot reload enabled.
 ```bash
 ./scripts/dev.sh

@@ -1,21 +1,21 @@
 #!/bin/bash
-# Script para ejecutar tests dentro del contenedor
+# Runs the test suite inside the containerized environment
 
 set -e
 
-echo "🧪 Preparando entorno de pruebas..."
+echo "🧪 Preparing the test environment..."
 
-# Verificar si el servicio app está corriendo
+# Ensure the app service is running before executing tests
 if ! docker-compose ps | grep -q "xulcan-core"; then
-    echo "⚠️  El contenedor de la app no está corriendo."
-    echo "    Iniciando infraestructura mínima para tests..."
+    echo "⚠️  The app container is not running."
+    echo "    Starting the minimum infrastructure required for tests..."
     docker-compose up -d
 fi
 
-echo "▶️  Ejecutando pytest..."
-# Usamos 'exec' para correr los tests dentro del contenedor que ya tiene el entorno configurado
+echo "▶️  Running pytest..."
+# Use exec so tests run inside the container with the configured environment
 docker-compose exec app pytest tests/ -v --cov=app --cov-report=html --cov-report=term
 
 echo ""
-echo "✅ Tests finalizados."
-echo "📊 Si ejecutaste con coverage, revisa la carpeta 'htmlcov' en tu directorio local."
+echo "✅ Test run finished."
+echo "📊 If you enabled coverage, inspect the 'htmlcov' folder in your local directory."
