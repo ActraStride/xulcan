@@ -1,0 +1,187 @@
+# ==============================================================================
+# XULCAN ORCHESTRATION MANIFEST (LOCAL/DEV)
+# ==============================================================================
+# Topology: Microservices architecture with centralized persistence.
+# Network:  Isolated bridge network to prevent external access to DBs.
+# Storage:  Named volumes for data durability across container recreations.
+# Security: Least privilege user (in Dockerfile) and strict resource limits.
+# ==============================================================================
+
+services:
+
+  # ----------------------------------------------------------------------------
+  # [DATA] Primary Datastore (PostgreSQL)
+  # Role: Source of Truth for relational data (Users, Agents, Audit Logs).
+  # Ops:  Configured with extended shared memory for parallel query performance.
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: xulcan-postgres
+    restart: unless-stopped
+    # PERF: Docker default shm is 64MB, which starves Postgres parallel workers.
+    #       We bump it to ensure complex queries (Vector search) don't crash.
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xulcan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-xulcan_db}
+      # I18N: Enforce UTF-8 to prevent collation issues with multi-language Agents.
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # DEV: Exposed for local debugging tools (DBeaver, DataGrip).
+      #      In PROD, this should NOT be exposed to the host network.
+      - "${POSTGRES_PORT:-55432}:5432"
+    healthcheck:
+      # RESILIENCE: Deep check using pg_isready to ensure accept connections
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xulcan} -d ${POSTGRES_DB:-xulcan_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - xulcan-net
+    # OPS: Log rotation prevents disk exhaustion (DoS) in long-running dev environments
+    logging: &default-logging
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ----------------------------------------------------------------------------
+  # [DATA] Ephemeral/State Store (Redis)
+  # Role:  Hot storage for Agent short-term memory, task queues, and Pub/Sub.
+  # Mode:  AOF (Append Only File) enabled for durability against crashes.
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: xulcan-redis
+    restart: unless-stopped
+    # DATA: Enable persistence. Without this, a restart wipes Agent context.
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-dev_secret}
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-dev_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - xulcan-net
+    logging: *default-logging
+
+  # ----------------------------------------------------------------------------
+  # [APP] Core API Service (FastAPI)
+  # Role:  Orchestration Engine. Handles HTTP/WS traffic and Tool execution.
+  # DevX:  Mounts local code for Hot-Reloading without rebuilding images.
+  # ----------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # DEV: Install dev dependencies for testing and linting tools
+        INSTALL_DEV: "true"
+    container_name: xulcan-core
+    restart: unless-stopped
+    # OPS: Tini/Init process wrapper to ensure SIGTERM signals are handled correctly
+    #      preventing zombie processes when stopping the container.
+    init: true
+    env_file:
+      - .env.example
+    environment:
+      # CONNECTIVITY: Service discovery via internal Docker DNS names
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-xulcan}:${POSTGRES_PASSWORD:-dev_secret}@postgres:5432/${POSTGRES_DB:-xulcan_db}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_secret}@redis:6379/0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - PYTHONPATH=/app
+    volumes:
+      # DEV: Volume mount for hot-reloading code changes
+      - ./app:/app/app:rw
+      - ./tests:/app/tests:rw
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - xulcan-net
+    # SEC: In PROD, remove --reload. It consumes resources and exposes debug info.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level ${LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging: *default-logging
+
+  # ----------------------------------------------------------------------------
+  # [TOOL] Database Admin UI (pgAdmin) - Optional
+  # Profile: 'dev' (Start with: docker-compose --profile dev up)
+  # ----------------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: xulcan-pgadmin
+    restart: unless-stopped
+    profiles: ["dev"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@xulcan.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      # SEC: Disable advanced server mode to reduce attack surface in dev
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      - postgres
+    networks:
+      - xulcan-net
+    logging: *default-logging
+
+  # ----------------------------------------------------------------------------
+  # [TOOL] Cache Inspector (Redis Commander) - Optional
+  # Profile: 'dev'
+  # ----------------------------------------------------------------------------
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: xulcan-redis-ui
+    restart: unless-stopped
+    profiles: ["dev"]
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-dev_secret}
+    ports:
+      - "${REDIS_UI_PORT:-8081}:8081"
+    depends_on:
+      - redis
+    networks:
+      - xulcan-net
+    logging: *default-logging
+
+# ==============================================================================
+# INFRASTRUCTURE DEFINITIONS
+# ==============================================================================
+networks:
+  xulcan-net:
+    driver: bridge
+    name: xulcan-network
+
+volumes:
+  postgres_data:
+    name: xulcan-postgres-data
+  redis_data:
+    name: xulcan-redis-data
+  pgadmin_data:
+    name: xulcan-pgadmin-data
