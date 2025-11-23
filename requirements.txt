@@ -1,0 +1,61 @@
+# =============================================================================
+# XULCAN - PRODUCTION DEPENDENCIES
+# =============================================================================
+# Strategy: Pinned versions for stability.
+# Security: Minimal footprint (no dev tools).
+# =============================================================================
+
+# --- Core Framework & Server ---
+fastapi==0.109.2
+# PERF: Uvicorn is the ASGI worker. For Prod, we usually run it behind Gunicorn.
+uvicorn[standard]==0.27.1
+# SEC: Pydantic v2 for strict strict typing and data validation
+pydantic==2.6.1
+pydantic-settings==2.1.0
+
+# --- Orchestration & Logic ---
+# VITAL: For parsing Agent DNA (YAML manifests)
+PyYAML==6.0.1
+# RESILIENCE: Retries with exponential backoff for flaky LLM APIs (Circuit Breaker pattern)
+tenacity==8.2.3
+
+# --- LLM Ecosystem (The Brains) ---
+# Note: Pinned closely as these APIs change frequently
+openai==1.12.0
+anthropic==0.18.1
+google-generativeai==0.4.1
+# COST: Token counting for Context Window management and Billing limits
+tiktoken==0.6.0
+
+# --- Persistence (The Memory) ---
+# DATA: Async PostgreSQL driver (high concurrency)
+asyncpg==0.29.0
+sqlalchemy==2.0.27
+# MIGRATIONS: Schema management
+alembic==1.13.1
+# CACHE: Redis client for Short-Term memory and Pub/Sub
+redis==5.0.1
+# VITAL: Vector support for Postgres (pgvector) - Required for RAG
+pgvector==0.2.5
+
+# --- Security & Auth (The Vault) ---
+# SEC: JWT Handling for "Pass-Through" authentication tokens
+python-jose[cryptography]==3.3.0
+# SEC: Password hashing (Argon2/Bcrypt)
+passlib[bcrypt]==1.7.4
+# SEC: Official HashiCorp Vault Client (Vital for your Secret Management strategy)
+hvac==2.1.0
+
+# --- Connectivity ---
+# NET: Async HTTP client for Tool Execution (Webhooks/API calls)
+httpx==0.27.0
+
+# --- Observability ---
+# OPS: Structured JSON logging for Datadog/CloudWatch ingestion
+python-json-logger==2.0.7
+# OPS: Context-aware logging
+structlog==24.1.0
+
+# --- Utilities ---
+python-dotenv==1.0.1
+python-multipart==0.0.9
