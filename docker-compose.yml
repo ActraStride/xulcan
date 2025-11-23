@@ -88,6 +88,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # DEV: Install dev dependencies for testing and linting tools
+        INSTALL_DEV: "true"
     container_name: xulcan-core
     restart: unless-stopped
     # OPS: Tini/Init process wrapper to ensure SIGTERM signals are handled correctly

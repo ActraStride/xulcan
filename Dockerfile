@@ -39,10 +39,16 @@ RUN python -m venv /app/.venv
 # SEC: Ensure pip is patched against known vulnerabilities before installing deps
 RUN /app/.venv/bin/pip install --upgrade pip
 
+# ARG: Control whether to install development dependencies
+ARG INSTALL_DEV=false
+
 # DEP: Install project dependencies.
-#      Using a lockfile (requirements.txt) ensures deterministic builds.
+#      Using a requirements file ensures deterministic builds.
+#      Development dependencies are included for testing and linting.
 COPY requirements.txt .
-RUN /app/.venv/bin/pip install -r requirements.txt
+COPY requirements-dev.txt .
+
+RUN /app/.venv/bin/pip install -r requirements-dev.txt
 
 # ----------------------------------------------------------------------------------
 # STAGE 2: RUNTIME
