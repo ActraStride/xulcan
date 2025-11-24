@@ -48,7 +48,7 @@ ARG INSTALL_DEV=false
 COPY requirements.txt .
 COPY requirements-dev.txt .
 
-RUN /app/.venv/bin/pip install -r requirements-dev.txt
+RUN if [ "$INSTALL_DEV" = "true" ]; then /app/.venv/bin/pip install -r requirements-dev.txt; else /app/.venv/bin/pip install -r requirements.txt; fi
 
 # ----------------------------------------------------------------------------------
 # STAGE 2: RUNTIME
