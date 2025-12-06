@@ -58,42 +58,35 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # SEC: Install ONLY runtime libraries.
-#      - libpq5: Shared object required by psycopg2 at runtime (no headers needed).
-#      - curl: Required for the HEALTHCHECK command.
+#      - libpq5: Shared object required by psycopg2 at runtime.
 # OPS: Clean apt cache immediately to keep the layer small.
+# NOTA: Hemos quitado 'curl' porque usamos healthcheck nativo de Python.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # SEC: Implement Least Privilege Principle.
-#      Create a specific non-root user (UID 1000) to run the application.
-#      This mitigates container escape vulnerabilities.
 RUN useradd -m -u 1000 xulcan && \
     chown -R xulcan:xulcan /app
 
-# ARC: Copy the pre-compiled virtual environment from the builder stage.
-#      This avoids needing gcc/build-essential in the production image.
+# ARC: Copy venv from builder
 COPY --from=builder --chown=xulcan:xulcan /app/.venv /app/.venv
 
-# APP: Copy application source code with correct ownership.
+# APP: Copy application source code.
+# Esto copiará 'app/healthcheck.py' si está en tu carpeta local 'app/'.
 COPY --chown=xulcan:xulcan . .
 
-# SEC: Switch context to non-root user. All subsequent commands run as 'xulcan'.
+# SEC: Switch context to non-root user.
 USER xulcan
 
-# NET: Document the port the container listens on (Documentation only).
+# NET: Document port
 EXPOSE 8000
 
-# OPS: Orchestrator Healthcheck.
-#      Kubernetes/Docker will use this to restart the container if the app freezes.
-#      --interval: How often to check.
-#      --timeout: When to give up on a check.
-#      --start-period: Grace period for application boot.
+# OPS: Orchestrator Healthcheck (Native Python)
+#      Replaced 'curl' with a lightweight Python script to reduce image size and deps.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD /app/.venv/bin/python app/healthcheck.py || exit 1
 
 # RUN: Start the ASGI server.
-#      Bind to 0.0.0.0 to allow external access through the container network.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
