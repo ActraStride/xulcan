@@ -1,31 +1,31 @@
 # =============================================================================
 # XULCAN - DEVELOPMENT DEPENDENCIES
 # =============================================================================
-# Usage: pip install -r requirements-dev.txt
-# Includes all production deps plus testing and linting tools.
+# Install development dependencies: pip install -r requirements-dev.txt
+# Include all production dependencies plus testing and code quality tools.
 # =============================================================================
 
 -r requirements.txt
 
 # --- Testing Suite ---
 pytest==8.0.1
-# ASYNC: Necessary plugin to test FastAPI async endpoints
+# [ASYNC] Enable async test support for FastAPI endpoints.
 pytest-asyncio==0.23.5
-# QUALITY: Code coverage reporting
+# [COV] Generate code coverage reports.
 pytest-cov==4.1.0
-# MOCKING: For simulating LLM responses without paying API costs
+# [MOCK] Provide flexible mocking and patching utilities.
 pytest-mock==3.12.0
 
 # --- Code Quality (Linters & Formatters) ---
-# STYLE: The uncompromising code formatter
+# [STYLE] Enforce consistent code formatting.
 black==24.2.0
-# LINT: Fast linter (replaces flake8, isort)
+# [LINT] Perform fast linting; replace flake8 and isort.
 ruff==0.2.2
-# TYPE: Static type checker (Vital for Enterprise Python)
+# [TYPE] Run static type analysis.
 mypy==1.8.0
 
 # --- Development Tools ---
-# OPS: Hot-reloading related utils
+# [OPS] Enable hot-reloading for file changes.
 watchfiles==0.21.0
-# DEBUG: Better traceback formatting
+# [DEBUG] Render enhanced traceback formatting.
 rich==13.7.0
