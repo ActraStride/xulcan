@@ -137,7 +137,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level ${LOG_LEVEL:-info}
     healthcheck:
       # Defines a health check to verify the FastAPI application is responsive.
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "/app/.venv/bin/python", "app/healthcheck.py"]
       interval: 30s
       timeout: 10s
       retries: 3
