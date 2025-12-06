@@ -9,13 +9,9 @@
 
 # ----------------------------------------------------------------------------------
 # STAGE 1: BUILDER
-# Goal: Compile C-extensions and prepare the Python Virtual Environment.
-#       This stage is discarded in the final image to reduce attack surface.
 # ----------------------------------------------------------------------------------
-FROM python:3.11-slim AS builder
+FROM python:3.11.14-slim-bookworm AS builder
 
-# SW: Prevent Python from writing pyc files to disc (read-only containers)
-# PERF: Disable pip cache to reduce image size
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -23,39 +19,36 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# OPS: Install system build dependencies required for compiling Python wheels.
-#      - build-essential: GCC compiler for C-extensions.
-#      - libpq-dev: Postgres headers for psycopg2 compilation.
+# OPS: Install system build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ARC: Create a dedicated virtual environment.
-#      Even in Docker, using venv provides isolation from system packages and
-#      simplifies the copying of artifacts to the runtime stage.
+# ARC: Create virtual environment
 RUN python -m venv /app/.venv
-
-# SEC: Ensure pip is patched against known vulnerabilities before installing deps
 RUN /app/.venv/bin/pip install --upgrade pip
 
-# ARG: Control whether to install development dependencies
+# --- OPTIMIZACIÓN DE CACHÉ ---
+# 1. Copiamos SOLO los requerimientos de producción primero.
+COPY requirements.txt .
+# 2. Instalamos. Esto crea una capa cacheada. Si requirements.txt no cambia, Docker salta este paso.
+RUN /app/.venv/bin/pip install -r requirements.txt
+
+# 3. Argumento de construcción
 ARG INSTALL_DEV=false
 
-# DEP: Install project dependencies.
-#      Using a requirements file ensures deterministic builds.
-#      Development dependencies are included for testing and linting.
-COPY requirements.txt .
+# 4. Copiamos y condicionalmente instalamos dev deps.
+#    Si modificas requirements-dev.txt, solo se invalida de aquí para abajo.
 COPY requirements-dev.txt .
-
-RUN if [ "$INSTALL_DEV" = "true" ]; then /app/.venv/bin/pip install -r requirements-dev.txt; else /app/.venv/bin/pip install -r requirements.txt; fi
+RUN if [ "$INSTALL_DEV" = "true" ]; then /app/.venv/bin/pip install -r requirements-dev.txt; fi
 
 # ----------------------------------------------------------------------------------
 # STAGE 2: RUNTIME
 # Goal: Create a secure, lightweight execution environment.
 #       Contains ONLY the necessary binaries and the pre-built venv.
 # ----------------------------------------------------------------------------------
-FROM python:3.11-slim AS runtime
+FROM python:3.11.14-slim-bookworm AS runtime
 
 # OPS: Add venv to PATH to ensure `python` and `uvicorn` commands work natively
 ENV PYTHONUNBUFFERED=1 \

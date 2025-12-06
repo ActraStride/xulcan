@@ -1,65 +1,36 @@
-# Git
+# .dockerignore
+# Excluir control de versiones
 .git
 .gitignore
-.gitattributes
 
-# Python
-__pycache__
-*.py[cod]
-*$py.class
-*.so
+# Excluir configuración de entorno y secretos locales
+.env
+.env.*
+.secrets/
+*.md
+
+# Excluir archivos de IDEs
+.vscode/
+.idea/
+
+# Excluir artefactos de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 .Python
 env/
 venv/
-ENV/
-.venv
+.venv/
 pip-log.txt
 pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-htmlcov/
-*.egg-info/
-dist/
-build/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+# Excluir archivos de Docker (no se necesitan dentro de la imagen)
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+scripts/
 
-# Environment
-.env
-.env.local
-.env.*.local
-
-# Data
-data/logs/
-data/redis_data/
-!data/logs/.gitkeep
-
-# Docker
-docker-compose.override.yml
-Dockerfile.dev
-
-# Documentation
-*.md
-!README.md
-docs/
-
-# Tests
-tests/
-*.test.py
-
-# CI/CD
-.github/
-.gitlab-ci.yml
-
-# Misc
-*.log
-*.pid
-*.seed
-*.pid.lock
-.coverage
+# Excluir datos locales montados
+postgres_data/
+redis_data/
