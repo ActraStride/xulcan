@@ -1,24 +1,37 @@
+"""HTTP health check probe for container orchestration.
+
+Execute a lightweight HTTP GET request against the application's /health
+endpoint. Return appropriate exit codes for container runtime health probes.
+
+Exit Codes:
+    0: Healthy - Endpoint returned HTTP 200.
+    1: Unhealthy - Connection failed or non-200 response.
+
+Environment Variables:
+    HEALTHCHECK_HOST: Target host address (default: 127.0.0.1).
+    HEALTHCHECK_PORT: Target port number (default: 8000).
+"""
+
 import sys
 import os
 import urllib.request
 import urllib.error
 
-# Configuración Dinámica
-# Si no hay variables de entorno, usa los defaults seguros (127.0.0.1:8000)
+# --- Configuration ---
+# Load target endpoint from environment variables with secure defaults.
 HOST = os.environ.get("HEALTHCHECK_HOST", "127.0.0.1")
 PORT = os.environ.get("HEALTHCHECK_PORT", "8000")
 URL = f"http://{HOST}:{PORT}/health"
-TIMEOUT = 2  # segundos
+TIMEOUT = 2  # seconds
 
+# --- Health Probe Execution ---
 try:
-    # Intenta hacer una petición GET
     with urllib.request.urlopen(URL, timeout=TIMEOUT) as response:
-        # Si el código de estado es 200, todo está bien
         if response.status == 200:
-            sys.exit(0) # HEALTHY
+            sys.exit(0)  # HEALTHY
         else:
-            sys.exit(1) # UNHEALTHY
+            sys.exit(1)  # UNHEALTHY
 
 except (urllib.error.URLError, urllib.error.HTTPError):
-    # Capturamos errores de red o errores HTTP (404, 500, etc.)
+    # Handle network errors and non-success HTTP responses (4xx, 5xx).
     sys.exit(1)

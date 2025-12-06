@@ -1,83 +1,85 @@
 # ==============================================================================
-# XULCAN ORCHESTRATION MANIFEST (LOCAL/DEV) - [SECRETS ENABLED]
+# XULCAN ORCHESTRATION MANIFEST — LOCAL/DEV ENVIRONMENT
 # ==============================================================================
-# This Docker Compose file defines the multi-service application stack
-# for local development and testing environments, with a strong focus on
-# security through Docker Secrets.
 #
-# Topology: Microservices architecture with centralized data persistence.
-# Network:  Isolated bridge network to prevent external access to databases.
-# Storage:  Named volumes for data durability across container recreations.
-# Security: Passwords managed via Docker Secrets instead of environment variables,
-#           enhancing security even in development setups.
+# Topology:  Microservices architecture with centralized data persistence.
+# Network:   Isolated bridge network; databases are not exposed externally.
+# Storage:   Named volumes ensure data durability across container restarts.
+# Security:  Credentials managed via Docker Secrets (file-based for local dev).
+#
 # ==============================================================================
 
 services:
 
+  # ============================================================================
+  # === DATA LAYER =============================================================
+  # ============================================================================
+
   # ----------------------------------------------------------------------------
-  # [DATA] Primary Datastore (PostgreSQL)
+  # [DATA] PostgreSQL — Primary Relational Datastore
   # ----------------------------------------------------------------------------
-  # PostgreSQL is used as the main relational database for the application.
-  # Configured to use Docker Secrets for the database password.
+  # Serve as the main RDBMS for persistent application data.
+  # Credentials are injected via Docker Secrets, not environment variables.
   postgres:
     image: postgres:16.11-alpine
     container_name: xulcan-postgres
     restart: unless-stopped
-    shm_size: 128mb # Allocates shared memory for PostgreSQL, often required for performance.
+    # [OPS] Allocate shared memory for PostgreSQL performance optimization.
+    shm_size: 128mb
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-xulcan}
-      # SECRET: The database password is no longer passed directly as an environment variable.
-      # POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_secret}
-      # SECRET: Instead, PostgreSQL is instructed to read the password from a file.
-      #         Docker Compose mounts the secret into this specified path within the container.
+      # [SEC] Read database password from a mounted secret file.
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB:-xulcan_db}
-      # Ensures UTF8 encoding and a consistent locale for the database.
+      # Enforce UTF-8 encoding and a consistent C locale for portability.
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C.UTF-8"
     volumes:
-      # Named volume for persistent PostgreSQL data, ensuring data survives container restarts.
+      # Persist database files across container restarts.
       - postgres_data:/var/lib/postgresql/data
     ports:
-      # Maps a host port (default 55432) to the container's PostgreSQL port.
+      # Expose PostgreSQL on a non-standard host port (default: 55432).
       - "${POSTGRES_PORT:-55432}:5432"
     healthcheck:
-      # Defines a health check to verify PostgreSQL is ready and accepting connections.
+      # Verify PostgreSQL is accepting connections before dependent services start.
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xulcan} -d ${POSTGRES_DB:-xulcan_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s # Time to wait before starting health checks, allowing the DB to initialize.
+      start_period: 10s
     networks:
       - xulcan-net
-    logging: &default-logging # Anchor for reusable logging configuration.
+    # [OPS] Reusable logging configuration anchor.
+    logging: &default-logging
       driver: "json-file"
       options:
-        max-size: "10m" # Maximum size of each log file.
-        max-file: "3"   # Maximum number of log files to keep.
-    # SECRET: Grants the container access to the 'postgres_password' secret.
+        max-size: "10m"
+        max-file: "3"
     secrets:
       - postgres_password
 
-# ----------------------------------------------------------------------------
-# [DATA] Ephemeral/State Store (Redis) - BITNAMI EDITION
-# ----------------------------------------------------------------------------
-# Migrado a Bitnami para evitar el uso de 'sh -c' (PID 1 issues) y usar
-# soporte nativo de secretos.
+  # ----------------------------------------------------------------------------
+  # [DATA] Redis — Ephemeral/State Store (Bitnami Edition)
+  # ----------------------------------------------------------------------------
+  # Provide in-memory caching and state management.
+  # Use Bitnami image for native secret file support (avoids shell wrapper issues).
   redis:
-    # Image is pinned with SHA256 digest for security and reproducibility; update digest as needed when upgrading.
+    # [SEC] Pin image with SHA256 digest for supply-chain security.
+    # Update digest when upgrading the Redis version.
     image: bitnami/redis:7.2.4@sha256:c9fe12d04ead99c483a030768aa80b3bb8a96d254bb6d02d0fb30374c53077e1
     container_name: xulcan-redis
     restart: unless-stopped
     environment:
-      # Bitnami lee el secreto nativamente sin scripts raros.
+      # [SEC] Bitnami natively supports reading passwords from secret files.
       - REDIS_PASSWORD_FILE=/run/secrets/redis_password
-      - REDIS_AOF_ENABLED=yes # Equivalente a --appendonly yes
+      # Enable Append-Only File persistence for data durability.
+      - REDIS_AOF_ENABLED=yes
     volumes:
-      # OJO: Bitnami usa una ruta interna diferente para los datos.
+      # [OPS] Bitnami uses /bitnami/redis/data as the data directory.
       - redis_data:/bitnami/redis/data
-    ports:  
+    ports:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
+      # Authenticate and verify Redis responds to PING.
       test: ["CMD-SHELL", "REDISCLI_AUTH=$(cat /run/secrets/redis_password) redis-cli ping | grep PONG"]
       interval: 10s
       timeout: 5s
@@ -89,69 +91,74 @@ services:
     secrets:
       - redis_password
 
+  # ============================================================================
+  # === APPLICATION LAYER ======================================================
+  # ============================================================================
+
   # ----------------------------------------------------------------------------
-  # [APP] Core API Service (FastAPI)
+  # [APP] FastAPI — Core API Service
   # ----------------------------------------------------------------------------
-  # The main application service, built using FastAPI, serving the core API.
+  # Serve the primary application API. Build from local Dockerfile.
   app:
     build:
-      context: .              # Build context is the current directory.
-      dockerfile: Dockerfile  # Specifies the Dockerfile to use.
+      context: .
+      dockerfile: Dockerfile
       args:
-        INSTALL_DEV: "true"   # Build argument to install development dependencies.
+        # Include development dependencies in the image.
+        INSTALL_DEV: "true"
     container_name: xulcan-core
     restart: unless-stopped
-    init: true # Enables an init process, improving graceful shutdown handling.
+    # [OPS] Enable init process for proper signal handling and zombie reaping.
+    init: true
     env_file:
-      # SECRET: Passwords are managed separately via Docker Secrets.
-      #         However, non-sensitive configurations can still be sourced from .env files.
+      # Load non-sensitive configuration from environment file.
       - .env.example
     environment:
-      # SECRET: Connection URLs for databases no longer contain passwords directly.
-      #         The application must now construct these by reading the secret files.
+      # [SEC] Database URLs exclude passwords; application reads secrets at runtime.
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-xulcan}@postgres:5432/${POSTGRES_DB:-xulcan_db}
       - REDIS_URL=redis://redis:6379/0
-      # SECRET: Instead, the PATH to the secret files is passed to the application.
-      #         Your Python code will read these paths and then the file contents.
+      # [SEC] Paths to mounted secret files for credential retrieval.
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
       - REDIS_PASSWORD_FILE=/run/secrets/redis_password
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - PYTHONPATH=/app # Ensures Python can find modules within the app directory.
+      - PYTHONPATH=/app
     volumes:
-      # Mounts local source code into the container for live reloading during development.
+      # Mount source code for live reloading during development.
       - ./app:/app/app:rw
       - ./tests:/app/tests:rw
     ports:
-      # Maps a host port (default 8000) to the container's application port.
       - "${APP_PORT:-8000}:8000"
     depends_on:
-      # Ensures PostgreSQL and Redis are healthy before starting the app service.
+      # Wait for healthy database services before starting.
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
       - xulcan-net
-    # Command to run the FastAPI application with Uvicorn, enabling hot-reloading for development.
+    # Run Uvicorn with hot-reload enabled for development.
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level ${LOG_LEVEL:-info}
     healthcheck:
-      # Defines a health check to verify the FastAPI application is responsive.
+      # Invoke healthcheck script using the container's virtual environment.
       test: ["CMD", "/app/.venv/bin/python", "app/healthcheck.py"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s # Time to wait before starting health checks.
+      start_period: 40s
     logging: *default-logging
-    # SECRET: Grants the application container access to both database secrets.
     secrets:
       - postgres_password
       - redis_password
 
+  # ============================================================================
+  # === DEVELOPER TOOLS ========================================================
+  # ============================================================================
+
   # ----------------------------------------------------------------------------
-  # [TOOL] pgAdmin - REFACTORIZADO A SECRETOS
+  # [TOOL] pgAdmin — PostgreSQL Administration Interface
   # ----------------------------------------------------------------------------
-  # Ahora usa PGADMIN_DEFAULT_PASSWORD_FILE para consistencia de seguridad.
+  # Provide a web-based GUI for database management (dev profile only).
   pgadmin:
     image: dpage/pgadmin4:9.10
     container_name: xulcan-pgadmin
@@ -159,9 +166,9 @@ services:
     profiles: ["dev"]
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@xulcan.dev}
-      # ANTES: PGADMIN_DEFAULT_PASSWORD: ... (Inseguro)
-      # AHORA: Leemos del archivo secreto montado
+      # [SEC] Read admin password from mounted secret file.
       PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pgadmin_password
+      # Disable server mode for simplified local access.
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     volumes:
@@ -173,61 +180,56 @@ services:
     networks:
       - xulcan-net
     logging: *default-logging
-    # Necesitamos montar el secreto aquí también
     secrets:
       - pgadmin_password
 
-# ----------------------------------------------------------------------------
-# [TOOL] Redis GUI (Redis Insight) - OFICIAL REPLACEMENT
-# ----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
+  # [TOOL] Redis Insight — Redis Administration Interface
+  # ----------------------------------------------------------------------------
+  # Provide a web-based GUI for Redis inspection and management (dev profile only).
+  # Connection credentials are configured via the UI and persisted in a volume.
   redis-insight:
-    # Usamos la versión estable más reciente (Marzo 2024 aprox)
     image: redis/redisinsight:2.44.0
     container_name: xulcan-redis-ui
     restart: unless-stopped
     profiles: ["dev"]
-    # Redis Insight guarda las conexiones en un volumen, no por variables de entorno.
-    # Es más seguro porque configuras la conexión una vez en la UI y persiste.
     volumes:
       - redis_insight_data:/data
     ports:
-      # The default port for Redis Insight is 5540 (was 8081 for redis-commander).
+      # Default Redis Insight port.
       - "${REDIS_INSIGHT_PORT:-5540}:5540"
     networks:
       - xulcan-net
     logging: *default-logging
-# ==============================================================================
-# INFRASTRUCTURE DEFINITIONS
-# ==============================================================================
-# Defines shared network and named volumes for the services.
 
+# ==============================================================================
+# === INFRASTRUCTURE ===========================================================
+# ==============================================================================
+
+# --- Networks -----------------------------------------------------------------
 networks:
   xulcan-net:
-    driver: bridge # Uses a default bridge network for container communication.
-    name: xulcan-network # Assigns a custom name to the network.
+    driver: bridge
+    name: xulcan-network
 
+# --- Volumes ------------------------------------------------------------------
 volumes:
   postgres_data:
-    name: xulcan-postgres-data # Persistent data for PostgreSQL.
+    name: xulcan-postgres-data
   redis_data:
-    name: xulcan-redis-data     # Persistent data for Redis.
+    name: xulcan-redis-data
   pgadmin_data:
-    name: xulcan-pgadmin-data   # Persistent data for pgAdmin.
+    name: xulcan-pgadmin-data
   redis_insight_data:
     name: xulcan-redis-insight-data
 
-# ==============================================================================
-# SECRETS DEFINITIONS (LOCAL DEVELOPMENT)
-# ==============================================================================
-# This section defines the Docker secrets used by the services.
-# For local development, 'file:' specifies the path to a local file
-# containing the secret value. In a production (Docker Swarm) environment,
-# this would typically be 'external: true' to reference pre-existing secrets.
-# ==============================================================================
+# --- Secrets ------------------------------------------------------------------
+# [SEC] For local development, secrets are read from files in ./.secrets/.
+#       In production (Docker Swarm), use 'external: true' instead.
 secrets:
   postgres_password:
-    file: ./.secrets/postgres_password # Path to the file containing the PostgreSQL password.
+    file: ./.secrets/postgres_password
   redis_password:
-    file: ./.secrets/redis_password    # Path to the file containing the Redis password.
+    file: ./.secrets/redis_password
   pgadmin_password:
-    file: ./.secrets/pgadmin_password  # Path to the file containing the pgAdmin password.
+    file: ./.secrets/pgadmin_password

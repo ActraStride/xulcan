@@ -1,61 +1,61 @@
 # =============================================================================
 # XULCAN - PRODUCTION DEPENDENCIES
 # =============================================================================
-# Strategy: Pinned versions for stability.
-# Security: Minimal footprint (no dev tools).
+# Pin all versions for reproducible builds and stability.
+# Exclude development tools to minimize attack surface.
 # =============================================================================
 
-# --- Core Framework & Server ---
+# === CORE FRAMEWORK & SERVER ===
 fastapi==0.109.2
-# PERF: Uvicorn is the ASGI worker. For Prod, we usually run it behind Gunicorn.
+# [PERF] ASGI server; deploy behind Gunicorn in production.
 uvicorn[standard]==0.27.1
-# SEC: Pydantic v2 for strict strict typing and data validation
+# [SEC]  Pydantic v2 for strict typing and data validation.
 pydantic==2.6.1
 pydantic-settings==2.1.0
 
-# --- Orchestration & Logic ---
-# VITAL: For parsing Agent DNA (YAML manifests)
+# === ORCHESTRATION & LOGIC ===
+# [DATA] Parse YAML configuration manifests.
 PyYAML==6.0.1
-# RESILIENCE: Retries with exponential backoff for flaky LLM APIs (Circuit Breaker pattern)
+# [OPS]  Retry with exponential backoff; implement circuit breaker pattern.
 tenacity==8.2.3
 
-# --- LLM Ecosystem (The Brains) ---
-# Note: Pinned closely as these APIs change frequently
+# === AI/ML PROVIDERS ===
+# Pin closely; provider APIs change frequently.
 openai==1.12.0
 anthropic==0.18.1
 google-generativeai==0.4.1
-# COST: Token counting for Context Window management and Billing limits
+# [COST] Token counting for context window and billing management.
 tiktoken==0.6.0
 
-# --- Persistence (The Memory) ---
-# DATA: Async PostgreSQL driver (high concurrency)
+# === PERSISTENCE ===
+# [DATA] Async PostgreSQL driver optimized for high concurrency.
 asyncpg==0.29.0
 sqlalchemy==2.0.27
-# MIGRATIONS: Schema management
+# [OPS]  Database schema migrations.
 alembic==1.13.1
-# CACHE: Redis client for Short-Term memory and Pub/Sub
+# [DATA] Redis client for caching and pub/sub messaging.
 redis==5.0.1
-# VITAL: Vector support for Postgres (pgvector) - Required for RAG
+# [DATA] pgvector extension bindings for vector similarity search.
 pgvector==0.2.5
 
-# --- Security & Auth (The Vault) ---
-# SEC: JWT Handling for "Pass-Through" authentication tokens
+# === SECURITY & AUTHENTICATION ===
+# [SEC]  JWT encoding/decoding with cryptographic backend.
 python-jose[cryptography]==3.3.0
-# SEC: Password hashing (Argon2/Bcrypt)
+# [SEC]  Password hashing (Argon2/Bcrypt).
 passlib[bcrypt]==1.7.4
-# SEC: Official HashiCorp Vault Client (Vital for your Secret Management strategy)
+# [SEC]  HashiCorp Vault client for secrets management.
 hvac==2.1.0
 
-# --- Connectivity ---
-# NET: Async HTTP client for Tool Execution (Webhooks/API calls)
+# === CONNECTIVITY ===
+# [NET]  Async HTTP client for external API calls and webhooks.
 httpx==0.27.0
 
-# --- Observability ---
-# OPS: Structured JSON logging for Datadog/CloudWatch ingestion
+# === OBSERVABILITY ===
+# [OPS]  Structured JSON logging for log aggregation systems.
 python-json-logger==2.0.7
-# OPS: Context-aware logging
+# [OPS]  Context-aware structured logging.
 structlog==24.1.0
 
-# --- Utilities ---
+# === UTILITIES ===
 python-dotenv==1.0.1
 python-multipart==0.0.9
