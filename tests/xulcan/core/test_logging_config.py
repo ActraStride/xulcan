@@ -5,8 +5,8 @@ processors, and context variables for both production and development environmen
 """
 import pytest
 import structlog
-from app.config import Settings
-from app.core.logging_config import get_logging_config, get_common_processors, bind_contextvars, clear_contextvars
+from xulcan.config import Settings
+from xulcan.core.logging_config import get_logging_config, get_common_processors, bind_contextvars, clear_contextvars
 
 def test_config_generates_json_in_production():
     """Verify production environment uses JSON renderer for structured logging.

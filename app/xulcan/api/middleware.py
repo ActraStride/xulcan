@@ -9,7 +9,7 @@ import uuid
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.core.logging_config import bind_contextvars, clear_contextvars, get_logger
+from xulcan.core.logging_config import bind_contextvars, clear_contextvars, get_logger
 
 logger = get_logger(__name__)
 

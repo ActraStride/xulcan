@@ -5,7 +5,7 @@ readiness probes, and legacy health endpoints used for container orchestration.
 """
 from fastapi import status
 from fastapi.testclient import TestClient
-from app.main import app
+from xulcan.main import app
 
 
 def test_liveness_probe_returns_200(client: TestClient):

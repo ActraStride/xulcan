@@ -122,11 +122,23 @@ services:
       - REDIS_PASSWORD_FILE=/run/secrets/redis_password
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - PYTHONPATH=/app
     volumes:
-      # Mount source code for live reloading during development.
-      - ./app:/app/app:rw
+      # Mount the application source code for hot-reloading.
+      # This specifically mounts the 'xulcan' package.
+      - ./app/xulcan:/app/xulcan:rw
+
+      # Mount the healthcheck script.
+      - ./app/healthcheck.py:/app/healthcheck.py:ro
+
+      # Mount the tests directory.
       - ./tests:/app/tests:rw
+
+      # Mount the pytest configuration file.
+      - ./pytest.ini:/app/pytest.ini:ro
+
+      # Preserve the virtual environment from the image build.
+      # This MUST come last to ensure it's not overwritten.
+      - /app/.venv
     ports:
       - "${APP_PORT:-8000}:8000"
     depends_on:
@@ -138,10 +150,10 @@ services:
     networks:
       - xulcan-net
     # Run Uvicorn with hot-reload enabled for development.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level ${LOG_LEVEL:-info}
+    command: uvicorn xulcan.main:app --host 0.0.0.0 --port 8000 --reload --log-level ${LOG_LEVEL:-info}
     healthcheck:
       # Invoke healthcheck script using the container's virtual environment.
-      test: ["CMD", "/app/.venv/bin/python", "app/healthcheck.py"]
+      test: ["CMD", "/app/.venv/bin/python", "/app/healthcheck.py"]
       interval: 30s
       timeout: 10s
       retries: 3

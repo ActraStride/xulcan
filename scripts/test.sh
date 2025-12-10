@@ -1,21 +1,33 @@
 #!/bin/bash
-# Runs the test suite inside the containerized environment
+# Runs the test suite inside the containerized environment.
+# This script ensures the necessary services are running and executes pytest
+# with the configuration defined in pytest.ini.
 
-set -e
+set -euo pipefail # Fail fast on errors, undefined variables, and pipe failures
 
 echo "🧪 Preparing the test environment..."
 
-# Ensure the app service is running before executing tests
-if ! docker compose ps | grep -q "xulcan-core"; then
-    echo "⚠️  The app container is not running."
-    echo "    Starting the minimum infrastructure required for tests..."
-    docker compose up -d
+# Use Docker Compose to get the status of the app service.
+# This is more robust than parsing `ps` output.
+APP_SERVICE_STATUS=$(docker compose ps -q --status=running app)
+
+# Start services only if the app container is not already running.
+if [ -z "$APP_SERVICE_STATUS" ]; then
+    echo "⚠️  App service is not running. Starting required services..."
+    # `-d` starts in detached mode.
+    # We only need `app` and its dependencies (`postgres`, `redis`).
+    # The dev tools (`pgadmin`, etc.) are not needed for testing.
+    docker compose up -d app
+    echo "✅ Services started."
 fi
 
-echo "▶️  Running pytest..."
-# Use exec so tests run inside the container with the configured environment
-docker compose exec app pytest tests/ -v --cov=app --cov-report=html --cov-report=term
+echo "▶️  Running pytest suite..."
+
+# Execute pytest inside the 'app' service container.
+# -e PYTHONPATH=/app: Ensures Python can find the 'xulcan' package.
+# All other pytest arguments are now sourced from `pytest.ini`.
+docker compose exec -e PYTHONPATH=/app app pytest xulcan/ tests/
 
 echo ""
 echo "✅ Test run finished."
-echo "📊 If you enabled coverage, inspect the 'htmlcov' folder in your local directory."
+echo "📊 Coverage report generated in 'htmlcov/'."

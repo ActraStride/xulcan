@@ -10,8 +10,8 @@ from unittest import mock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.config import Settings, get_settings
+from xulcan.main import app
+from xulcan.config import Settings, get_settings
 
 # ==============================================================================
 # CONFIGURATION FIXTURES
