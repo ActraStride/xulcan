@@ -14,9 +14,9 @@ from typing import AsyncGenerator
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
-from app.api.middleware import RequestCorrelationMiddleware
-from app.config import Settings, get_settings
-from app.core.logging_config import (
+from xulcan.api.middleware import RequestCorrelationMiddleware
+from xulcan.config import Settings, get_settings
+from xulcan.core.logging_config import (
     configure_structlog_wrapper,
     get_logger,
     get_logging_config,
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.is_ready = True
         logger.info("Resources initialized successfully")
     except Exception as e:
-        logger.critical(f"Failed to initialize resources: {e}")
+        logger.critical("Failed to initialize resources", error=str(e), exc_info=True)
         app.state.is_ready = False
         raise e
 
@@ -99,7 +99,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         error=str(exc),
         path=request.url.path,
         method=request.method,
-        exc_info=True # This ensures the stack trace is included in the log
+        exc_info=True  # This ensures the stack trace is included in the log
     )
     
     return JSONResponse(

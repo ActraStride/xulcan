@@ -16,7 +16,7 @@ from typing import Any
 import structlog
 from structlog.types import Processor
 
-from app.config import Settings
+from xulcan.config import Settings
 
 
 # =============================================================================

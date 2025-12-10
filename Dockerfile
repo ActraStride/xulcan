@@ -72,8 +72,8 @@ RUN useradd -m -u 1000 xulcan && \
 # [ARC] Copy virtual environment from builder stage.
 COPY --from=builder --chown=xulcan:xulcan /app/.venv /app/.venv
 
-# [APP] Copy application source code.
-COPY --chown=xulcan:xulcan . .
+# [APP] Copy only the application package into the container.
+COPY --chown=xulcan:xulcan ./app /app
 
 # [SEC] Switch execution context to non-root user.
 USER xulcan
@@ -84,7 +84,7 @@ EXPOSE 8000
 # [OPS] Configure container healthcheck using native Python script.
 #       Avoids curl dependency to reduce image size.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD /app/.venv/bin/python app/healthcheck.py || exit 1
+    CMD /app/.venv/bin/python /app/healthcheck.py || exit 1
 
 # [RUN] Start the ASGI server.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "xulcan.main:app", "--host", "0.0.0.0", "--port", "8000"]
