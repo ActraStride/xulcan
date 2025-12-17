@@ -223,4 +223,4 @@ Este proyecto está bajo la Licencia **GNU Affero General Public License v3.0 (A
 
 ---
 
-**Estado**: 🚀 Desarrollo Activo | **Versión**: 0.1.1-alpha
+**Estado**: 🚀 Desarrollo Activo | **Versión**: 0.2.0-alpha
