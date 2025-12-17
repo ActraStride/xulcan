@@ -1,21 +1,16 @@
 # ==================================================================================
 # XULCAN API - PRODUCTION DOCKERFILE
 # ==================================================================================
-# Description: Multi-stage build strategy to ensure minimal image size and
-#              maximum security by separating build artifacts from runtime.
+# Description: Multi-stage build for minimal image size and maximum security.
 # Standard:    OCI Compliant
 # Security:    Non-root execution, ephemeral build dependencies.
 # ==================================================================================
 
 # ----------------------------------------------------------------------------------
 # STAGE 1: BUILDER
-# Goal: Compile C-extensions and prepare the Python Virtual Environment.
-#       This stage is discarded in the final image to reduce attack surface.
 # ----------------------------------------------------------------------------------
-FROM python:3.11-slim AS builder
+FROM python:3.11.14-slim-bookworm AS builder
 
-# SW: Prevent Python from writing pyc files to disc (read-only containers)
-# PERF: Disable pip cache to reduce image size
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -23,84 +18,73 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# OPS: Install system build dependencies required for compiling Python wheels.
-#      - build-essential: GCC compiler for C-extensions.
-#      - libpq-dev: Postgres headers for psycopg2 compilation.
+# [OPS] Install system build dependencies required for compiling Python packages.
+#       - build-essential: Provides gcc and make for native extensions.
+#       - libpq-dev: Headers for building psycopg2.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ARC: Create a dedicated virtual environment.
-#      Even in Docker, using venv provides isolation from system packages and
-#      simplifies the copying of artifacts to the runtime stage.
+# [ARC] Create isolated virtual environment.
 RUN python -m venv /app/.venv
-
-# SEC: Ensure pip is patched against known vulnerabilities before installing deps
 RUN /app/.venv/bin/pip install --upgrade pip
 
-# ARG: Control whether to install development dependencies
-ARG INSTALL_DEV=false
-
-# DEP: Install project dependencies.
-#      Using a requirements file ensures deterministic builds.
-#      Development dependencies are included for testing and linting.
+# ----------------------------------------------------------------------------------
+# DEPENDENCY LAYER CACHING STRATEGY
+# ----------------------------------------------------------------------------------
+# Copy and install production dependencies first to maximize Docker layer caching.
+# Subsequent builds skip this step if requirements.txt remains unchanged.
 COPY requirements.txt .
-COPY requirements-dev.txt .
+RUN /app/.venv/bin/pip install -r requirements.txt
 
-RUN if [ "$INSTALL_DEV" = "true" ]; then /app/.venv/bin/pip install -r requirements-dev.txt; else /app/.venv/bin/pip install -r requirements.txt; fi
+# [OPS] Conditionally install development dependencies based on build argument.
+ARG INSTALL_DEV=false
+COPY requirements-dev.txt .
+RUN if [ "$INSTALL_DEV" = "true" ]; then /app/.venv/bin/pip install -r requirements-dev.txt; fi
 
 # ----------------------------------------------------------------------------------
 # STAGE 2: RUNTIME
-# Goal: Create a secure, lightweight execution environment.
-#       Contains ONLY the necessary binaries and the pre-built venv.
 # ----------------------------------------------------------------------------------
-FROM python:3.11-slim AS runtime
+# Create a secure, lightweight execution environment containing only the necessary
+# binaries and the pre-built virtual environment.
+FROM python:3.11.14-slim-bookworm AS runtime
 
-# OPS: Add venv to PATH to ensure `python` and `uvicorn` commands work natively
+# [OPS] Add virtual environment to PATH for native command execution.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
-# SEC: Install ONLY runtime libraries.
-#      - libpq5: Shared object required by psycopg2 at runtime (no headers needed).
-#      - curl: Required for the HEALTHCHECK command.
-# OPS: Clean apt cache immediately to keep the layer small.
+# [SEC] Install only runtime libraries to minimize attack surface.
+#       - libpq5: Shared library required by psycopg2 at runtime.
+# [OPS] Clean apt cache immediately to keep the layer small.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# SEC: Implement Least Privilege Principle.
-#      Create a specific non-root user (UID 1000) to run the application.
-#      This mitigates container escape vulnerabilities.
+# [SEC] Implement Least Privilege Principle with non-root user.
 RUN useradd -m -u 1000 xulcan && \
     chown -R xulcan:xulcan /app
 
-# ARC: Copy the pre-compiled virtual environment from the builder stage.
-#      This avoids needing gcc/build-essential in the production image.
+# [ARC] Copy virtual environment from builder stage.
 COPY --from=builder --chown=xulcan:xulcan /app/.venv /app/.venv
 
-# APP: Copy application source code with correct ownership.
-COPY --chown=xulcan:xulcan . .
+# [APP] Copy only the application package into the container.
+COPY --chown=xulcan:xulcan ./app /app
 
-# SEC: Switch context to non-root user. All subsequent commands run as 'xulcan'.
+# [SEC] Switch execution context to non-root user.
 USER xulcan
 
-# NET: Document the port the container listens on (Documentation only).
+# [NET] Document exposed port for container orchestration.
 EXPOSE 8000
 
-# OPS: Orchestrator Healthcheck.
-#      Kubernetes/Docker will use this to restart the container if the app freezes.
-#      --interval: How often to check.
-#      --timeout: When to give up on a check.
-#      --start-period: Grace period for application boot.
+# [OPS] Configure container healthcheck using native Python script.
+#       Avoids curl dependency to reduce image size.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD /app/.venv/bin/python /app/healthcheck.py || exit 1
 
-# RUN: Start the ASGI server.
-#      Bind to 0.0.0.0 to allow external access through the container network.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# [RUN] Start the ASGI server.
+CMD ["uvicorn", "xulcan.main:app", "--host", "0.0.0.0", "--port", "8000"]

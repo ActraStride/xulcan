@@ -139,3 +139,4 @@ data/redis_data/
 docker-compose.override.yml
 Dockerfile.dev
 
+.secrets/

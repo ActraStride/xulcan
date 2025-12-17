@@ -1,11 +1,8 @@
-# Xulcan - Utility Scripts
+# Internal Scripts
 
-This directory contains helper scripts that streamline common development tasks.
-Grant execution permissions if needed: `chmod +x scripts/*.sh`
+This directory contains internal logic used by the project's `Makefile`.
 
-## Usage
+**Do not run these scripts directly.**
+Use the `make` commands in the root directory instead.
 
-### 🚀 Start development stack
-Boots Postgres, Redis, and the API with hot reload enabled.
-```bash
-./scripts/dev.sh
+- `setup_dev_secrets.sh`: Generates cryptographic secrets. Invoked by `make setup`.
