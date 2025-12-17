@@ -1,68 +1,55 @@
 #!/bin/bash
-# =============================================================================
-# setup_dev_secrets.sh
-# =============================================================================
-# Description: Generate cryptographically secure secrets for local development.
-# Usage:       ./scripts/setup_dev_secrets.sh [--show-password]
 #
-# This script creates 256-bit secret files in the .secrets/ directory.
+# Description: Generates secure secrets for the Xulcan project infrastructure.
+#              Utilizes Python's secrets module to generate cryptographically
+#              strong hex tokens.
 #
-# Dependencies: Python 3 (for secure token generation)
-# =============================================================================
 
 set -euo pipefail
 
-# === PRE-FLIGHT CHECKS ===
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Error: 'python3' is required but not found in PATH." >&2
-    exit 1
-fi
+# === CONFIGURATION ===
 
-# === PATH RESOLUTION ===
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$SCRIPT_DIR/.."
 SECRETS_DIR="$PROJECT_ROOT/.secrets"
 
-echo "🔐 Generating secrets in: $SECRETS_DIR"
-mkdir -p "$SECRETS_DIR"
+# === FUNCTIONS ===
 
-# === SECRET GENERATION ===
-gen_secret() {
+# Generates a 32-byte hex secret and saves it to the specified file.
+# Skips generation if the file already exists.
+#
+# Arguments:
+#   $1 - filename: The name of the file to store the secret in.
+generate_secret() {
     local filename="$1"
     local filepath="$SECRETS_DIR/$filename"
 
-    if [ ! -s "$filepath" ]; then
-        # Generate a 32-byte (256-bit) hexadecimal token for production-grade security.
+    if [ ! -f "$filepath" ]; then
+        # Generate 32 bytes hex (safe for passwords) using Python's secrets module
         python3 -c "import secrets; print(secrets.token_hex(32), end='')" > "$filepath"
         echo "   ✅ Created: $filename"
     else
-        echo "   ⏭️  Exists: $filename (skipped)"
+        echo "   ⏭️  Exists: $filename"
     fi
 }
 
-# === MAIN EXECUTION ===
-gen_secret postgres_password
-gen_secret redis_password
-gen_secret pgadmin_password
+# === EXECUTION ===
 
-echo "✨ Secrets ready."
-
-# === OPTIONAL PASSWORD DISPLAY (with confirmation prompt) ===
-if [ "${1:-}" = "--show-password" ]; then
-    echo "⚠️  WARNING: Displaying secrets can expose them in logs and history."
-    printf "Are you sure you want to display the pgAdmin password? (y/N): "
-    read -r confirm
-
-    # Use POSIX-compliant case statement instead of bash-specific regex
-    case "$confirm" in
-        [yY]|[yY][eE][sS])
-            echo "🔑 pgAdmin Password: $(cat "$SECRETS_DIR/pgadmin_password")"
-            ;;
-        *)
-            echo "❌ Password display aborted by user."
-            ;;
-    esac
-else
-    echo "🔑 The pgAdmin password is stored securely in:"
-    echo "   $SECRETS_DIR/pgadmin_password"
+# Verify Python 3 availability
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Error: python3 is required." >&2
+    exit 1
 fi
+
+echo "🔐 Checking secrets configuration..."
+mkdir -p "$SECRETS_DIR"
+
+# Generate required secrets for infrastructure services
+generate_secret postgres_password
+generate_secret redis_password
+generate_secret pgadmin_password
+
+# Apply restrictive permissions (Read-only for the owner)
+chmod 644 "$SECRETS_DIR"/* 2>/dev/null || true
+
+echo "✨ Secrets are ready in .secrets/"

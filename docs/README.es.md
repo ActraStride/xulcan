@@ -1,95 +1,226 @@
 # Xulcan
 
 <p align="center">
-    <a href="../README.md">Inglés</a>
-    · <a href="README.es.md">Español</a>
-    · <a href="README.fr.md">Francés</a>
-    · <a href="README.ru.md">Ruso</a>
-    · <a href="README.ar.md">Árabe</a>
-    · <a href="README.zh.md">Chino (Mandarín)</a>
+    <a href="../README.md">Inglés 🇬🇧</a>
+    · <b>Español 🇲🇽</b>
 </p>
 
+**Framework de backend API-first para construir agentes de IA con orquestación de LLMs, gestión de memoria y ejecución de herramientas.**
 
-**Xulcan es un framework de backend, "API-first", para construir, gestionar y desplegar agentes de IA avanzados.**
-
-Su misión es abstraer la complejidad de la orquestación de LLMs, la gestión de memoria y el uso de herramientas, permitiendo a los desarrolladores integrar capacidades de razonamiento complejo en sus aplicaciones a través de una configuración declarativa y una API REST robusta.
-
-Este proyecto es de código abierto, pero se está construyendo como una plataforma personal con la ambición de convertirse en un ecosistema completo para el desarrollo agéntico.
-
----
-
-## Visión y Filosofía
-
-La inspiración central de Xulcan es la metáfora de un **compás de arquitecto con un adaptador universal**. Este símbolo representa nuestros principios de diseño:
-
-*   **Precisión:** Transformar el lenguaje natural ambiguo en acciones estructuradas y precisas.
-*   **Modularidad:** Construir agentes a partir de componentes conectables (`pluggable`) como "herramientas" y "memorias".
-*   **Orquestación:** Conectar el contexto (el punto fijo) con la acción (el punto móvil) a través de un proceso de razonamiento.
-
-Creemos en la **Configuración como Código** y en un enfoque **API-First** para garantizar sistemas de IA desacoplados, mantenibles y escalables.
-
-## Arquitectura Conceptual
-
-Xulcan está siendo diseñado como un servicio alojado que interactúa con las aplicaciones cliente a través de APIs.
-
-1.  **Dashboard de Xulcan:** Interfaz web donde se definen Agentes, Herramientas y Memorias.
-2.  **Núcleo Agéntico (El Motor):**
-    *   **`LLMClient`:** Adaptadores agnósticos (Gemini, OpenAI, Anthropic).
-    *   **`ToolExecutor`:** Ejecución segura de herramientas.
-    *   **`MemoryManager`:** Memoria a corto (Redis) y largo plazo (Faiss).
-    *   **`Executor`:** Orquestación del razonamiento (`Chain of Thought`).
-3.  **Integración del Cliente:** Modelo seguro y simple vía API REST.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
 
 ---
 
-## 🛠 Flujo de Desarrollo y Contribución
+## Inicio Rápido
 
-Para mantener la estabilidad del sistema y organizar las releases, utilizamos **Git Flow**.
+### Requisitos Previos
+- Docker y Docker Compose
+- Make (Estándar en Linux/Mac. Usuarios de Windows pueden usar WSL2 o Git Bash)
+- Python 3.11+ (recomendado para herramientas locales)
 
-### Estrategia de Ramas
-*   **`main`:** 🔴 **Producción.** Contiene únicamente código estable, versionado y listo para despliegue. Nadie hace commit directo aquí.
-*   **`develop`:** 🟡 **Integración (Next Release).** Es la rama de trabajo principal. Aquí se fusionan todas las nuevas funcionalidades para probarlas en conjunto antes de una release.
-*   **`feature/*`:** 🟢 **Desarrollo.** Ramas temporales para nuevas funcionalidades (ej. `feature/infra-logging`).
-    *   Nacen de: `develop`
-    *   Se fusionan en: `develop`
-*   **`hotfix/*`:** 🚑 **Urgencias.** Para errores críticos en producción. Nacen de `main` y se fusionan en `main` y `develop`.
+### Configuración (2 minutos)
 
-### Convención de Commits
-Seguimos [Conventional Commits](https://www.conventionalcommits.org/) para mantener un historial semántico:
-*   `feat:` Nueva funcionalidad.
-*   `fix:` Corrección de error.
-*   `chore:` Mantenimiento/configuración.
-*   `refactor:` Cambios de código que no alteran la funcionalidad.
+Usamos un `Makefile` para estandarizar las tareas de desarrollo. Olvídate de los scripts sueltos.
 
-### Política de Pull Requests (PR) & Merge
-1.  **Feature -> Develop:**
-    *   Se usa **Squash and Merge**.
-    *   *Objetivo:* Que cada funcionalidad aparezca como un solo commit limpio en el historial de `develop`.
-2.  **Develop -> Main (Release):**
-    *   Se usa **Merge Commit** (Create a merge commit).
-    *   *Objetivo:* Mantener la historia de que un grupo de funcionalidades se liberaron juntas como una versión (ej. v0.1.0).
-3.  **Tests:** El CI (Docker build + Pytest) debe pasar obligatoriamente antes de cualquier merge.
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/ActraStride/xulcan.git
+cd xulcan
 
----
+# 2. Configurar entorno (Genera secretos, .env y construye imágenes)
+make setup
 
-## Roadmap del Proyecto (Hasta Mayo 2026)
+# 3. Iniciar servicios en segundo plano (background)
+make dev
 
-### Trimestre 1: La Cimentación y el Primer Agente
-*   **[x] Infraestructura Base:** Dockerización, Postgres, Redis y estructura del proyecto.
-*   **[ ] Mes 1:** Diseño del núcleo, investigación de APIs de LLMs, implementación del `AgentManager` y el primer `LLMAdapter`.
-*   **[ ] Mes 2:** Implementación del sistema de **Herramientas** (`ToolRegistry`, `ToolExecutor`).
-*   **[ ] Mes 3:** Integración de la **memoria a corto plazo** (Redis) y el segundo `LLMAdapter`.
+# 4. Verificar instalación
+curl http://localhost:8000/health/live
+```
 
-### Trimestre 2: Capacidades Avanzadas y Ecosistema
-*   **[ ] Mes 4:** Memoria a largo plazo (RAG) y tercer `LLMAdapter`.
-*   **[ ] Mes 5:** Razonamiento multi-paso (Chain of Thought) y Workers (Celery).
-*   **[ ] Mes 6:** Dashboard MVP y hardening (seguridad, observabilidad).
+### Puntos de Acceso
 
-## Estado Actual
-
-🚀 **Fase de Construcción Activa.**
-La infraestructura base (Docker, BD, Cache) está operativa. Actualmente se está implementando el sistema de **Logging Estructurado** y Observabilidad.
+| Servicio | URL | Credenciales |
+|---------|-----|-------------|
+| **API** | http://localhost:8000 | - |
+| **API Docs** | http://localhost:8000/docs | - |
+| **pgAdmin** | http://localhost:5050 | `admin@xulcan.dev` / (ver `.secrets/pgadmin_password`) |
+| **Redis Insight** | http://localhost:5540 | Configurar manualmente al primer acceso |
 
 ---
 
-*Este documento sirve como la "Estrella Polar" para el desarrollo de Xulcan. Todas las decisiones técnicas y de producto deben alinearse con la visión y la arquitectura aquí descritas.*
+## Interfaz de Desarrollador (Make)
+
+Proporcionamos un `Makefile` robusto para manejar tareas comunes. Ejecuta `make help` para ver todos los comandos disponibles.
+
+| Comando | Descripción |
+|---------|-------------|
+| `make setup` | Genera secretos, archivo `.env` y construye las imágenes Docker. |
+| `make dev` | Inicia el stack completo (API + BD + Herramientas) y muestra los logs. |
+| `make up` | Inicia el stack en modo "detached" (silencioso/segundo plano). |
+| `make stop` | Detiene los contenedores sin eliminarlos. |
+| `make clean` | **Destructivo**. Elimina contenedores, volúmenes y caché local. |
+| `make test` | Ejecuta la suite de pytest dentro del contenedor. |
+| `make shell` | Abre una terminal bash dentro del contenedor de la API. |
+| `make db-shell`| Abre una sesión `psql` directamente a la base de datos. |
+
+---
+
+## Arquitectura
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     FastAPI Application                 │
+│                                                         │
+│  • REST API (Ejecutor Universal)                        │
+│  • Health checks (/health/live)                         │
+│  • Logging Estructurado (JSON/Consola)                  │
+└───────────────────┬─────────────────────────────────────┘
+                    │
+        ┌───────────┴───────────┐
+        │                       │
+┌───────▼────────┐    ┌─────────▼───────┐
+│   PostgreSQL   │    │      Redis      │
+│(Vectores/Datos)│    │   (Caché/Cola)  │
+└────────────────┘    └─────────────────┘
+```
+
+### Componentes Principales
+
+- **FastAPI**: API REST asíncrona con documentación OpenAPI automática.
+- **PostgreSQL**: Almacén de datos principal. Soportará `pgvector` para RAG.
+- **Redis**: Caché de alto rendimiento, limitación de velocidad (rate limiting) y broker de colas.
+- **Arq**: (Planeado) Cola de trabajos asíncronos construida sobre Redis para el razonamiento de agentes en segundo plano.
+- **Docker Secrets**: Gestión segura de credenciales para seguridad de grado producción.
+
+---
+
+## Configuración
+
+### Variables de Entorno
+
+La configuración se gestiona mediante el archivo `.env` (creado automáticamente por `make setup`) y Docker Secrets.
+
+```bash
+# Aplicación
+APP_ENV=development
+LOG_LEVEL=debug
+
+# Base de Datos y Redis
+POSTGRES_USER=xulcan
+POSTGRES_DB=xulcan_core
+REDIS_PORT=6379
+
+# Proveedores de IA (Obtén tus propias claves)
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Gestión de Secretos
+
+Las contraseñas sensibles **nunca** se almacenan en variables de entorno. Se gestionan mediante archivos en el directorio `.secrets/`, montados directamente en los contenedores.
+
+Para regenerar secretos (por ejemplo, si olvidaste la contraseña de pgAdmin):
+
+```bash
+# Advertencia: Esto sobrescribe los secretos existentes
+rm .secrets/*
+make setup
+```
+
+---
+
+## Estructura del Proyecto
+
+```
+xulcan/
+├── app/
+│   └── xulcan/
+│       ├── main.py              # Punto de entrada de la aplicación
+│       ├── config.py            # Configuraciones Pydantic
+│       └── core/                # Lógica del núcleo
+├── scripts/
+│   └── setup_dev_secrets.sh     # Lógica de generación de secretos
+├── tests/                       # Suite de pruebas Pytest
+├── docker-compose.yaml          # Orquestación
+├── Makefile                     # Ejecutor de Tareas (Task Runner)
+├── pytest.ini                   # Configuración de pruebas
+└── README.md
+```
+
+---
+
+## Despliegue
+
+### Lista de Verificación para Producción
+
+- [ ] Establecer `ENVIRONMENT=production` en `.env`.
+- [ ] Usar `make setup` en el servidor para generar secretos únicos.
+- [ ] Establecer reglas de firewall estrictas para los puertos de Redis y Postgres.
+- [ ] Configurar un proxy inverso (Nginx/Traefik) con SSL.
+- [ ] Usar un Gestor de Secretos externo (como Infisical) para las API Keys.
+
+### Build de Docker para Producción
+
+```bash
+# Construir imagen de producción
+docker build -t xulcan-api:latest .
+
+# Ejecutar con secretos de producción
+docker run -d \
+  -p 8000:8000 \
+  -e ENVIRONMENT=production \
+  --secret postgres_password \
+  --secret redis_password \
+  xulcan-api:latest
+```
+
+---
+
+## Hoja de Ruta (Roadmap)
+
+### ✅ Completado
+- Infraestructura base (Docker, Postgres, Redis).
+- **Experiencia de Desarrollador**: Makefile, Healthchecks, Hot-reload.
+- Seguridad: Docker Secrets, contenedores non-root.
+- Herramientas de desarrollo: pgAdmin, Redis Insight.
+
+### 🚧 En Progreso (Q1 2025)
+- **Ejecutor Universal**: Motor de ejecución de herramientas no-code.
+- **Registro de Agentes**: Esquema de base de datos para definir agentes vía JSON/YAML.
+- **Gateway de Autenticación**: Integración con Vault/Infisical para autenticación de herramientas.
+
+### 📋 Planeado (Q2 2025)
+- **Integración RAG**: Soporte nativo de `pgvector`.
+- **Razonamiento Asíncrono**: Workers en segundo plano usando **Arq**.
+- **Panel de Administración**: Interfaz web (UI) para gestionar agentes y ver métricas.
+
+---
+
+## Solución de Problemas (Troubleshooting)
+
+### Los servicios se comportan de forma inesperada
+Ejecuta un reinicio limpio completo para asegurar que no existan volúmenes obsoletos:
+```bash
+make clean
+make setup
+make dev
+```
+
+### "Redis is unhealthy"
+Asegúrate de haber ejecutado `make setup` para generar el archivo `.secrets/redis_password`. El contenedor requiere este archivo para pasar los chequeos de salud (health checks).
+
+### Conflictos de puertos
+Si los puertos 8000, 5432 o 6379 están ocupados, modifica el archivo `.env` generado por `make setup`.
+
+---
+
+## Licencia
+
+Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](../LICENSE) para más detalles.
+
+---
+
+**Estado**: 🚀 Desarrollo Activo | **Versión**: 0.1.1-alpha
