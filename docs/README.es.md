@@ -7,7 +7,7 @@
 
 **Framework de backend API-first para construir agentes de IA con orquestación de LLMs, gestión de memoria y ejecución de herramientas.**
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
@@ -219,7 +219,7 @@ Si los puertos 8000, 5432 o 6379 están ocupados, modifica el archivo `.env` gen
 
 ## Licencia
 
-Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](../LICENSE) para más detalles.
+Este proyecto está bajo la Licencia **GNU Affero General Public License v3.0 (AGPLv3)** - mira el archivo [LICENSE](../LICENSE) para más detalles.
 
 ---
 
