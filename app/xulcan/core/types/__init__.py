@@ -11,8 +11,16 @@ helpers remain private to ensure API stability.
 # 1. BASE MODELS
 # ═══════════════════════════════════════════════════════════════════════════
 from .base import (
-    CanonicalModel,
+    CanonicalRecord,
+    MAX_IDENTIFIER_LENGTH,
+    MAX_LABEL_LENGTH,
+    MAX_SEMANTIC_TEXT_LENGTH,
+    CanonicalIdentifier,
+    HumanLabel,
+    SemanticText,
     UsageStats,
+    BudgetConfig,
+    BudgetStrategy,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -73,9 +81,17 @@ from .events import (
 # ═══════════════════════════════════════════════════════════════════════════
 __all__ = [
     # Base
-    "CanonicalModel",
+    "CanonicalRecord",
+    "MAX_IDENTIFIER_LENGTH",
+    "MAX_LABEL_LENGTH",
+    "MAX_SEMANTIC_TEXT_LENGTH",
+    "CanonicalIdentifier",
+    "HumanLabel",
+    "SemanticText",
     "UsageStats",
-    
+    "BudgetConfig",
+    "BudgetStrategy",
+
     # Protocol - Messages
     "UnifiedMessage",
     "SystemMessage",
