@@ -18,6 +18,8 @@ from .base import (
     CanonicalIdentifier,
     HumanLabel,
     SemanticText,
+    CanonicalURL,
+    Base64Data,
     UsageStats,
     BudgetConfig,
     BudgetStrategy,
@@ -27,6 +29,12 @@ from .base import (
 # 2. PROTOCOL (LLM Wire Format)
 # ═══════════════════════════════════════════════════════════════════════════
 from .protocol import (
+    # Base Types
+    Role,
+    FinishReason,
+    ContentType,
+    ToolChoiceType,
+
     # Discriminated Union Types (these are what users actually use)
     UnifiedMessage,      # Union[SystemMessage | UserMessage | ToolMessage | AssistantMessage]
     ContentPart,         # Union[TextPart | ImagePart | AudioPart]
@@ -45,6 +53,7 @@ from .protocol import (
     # Tool-related Types
     ToolCall,
     ToolChoice,
+    NamedToolChoice,
     ToolDefinition,
     FunctionDef,
     
@@ -88,11 +97,17 @@ __all__ = [
     "CanonicalIdentifier",
     "HumanLabel",
     "SemanticText",
+    "CanonicalURL",
+    "Base64Data",
     "UsageStats",
     "BudgetConfig",
     "BudgetStrategy",
 
     # Protocol - Messages
+    "Role",
+    "FinishReason",
+    "ContentType",
+    "ToolChoiceType",
     "UnifiedMessage",
     "SystemMessage",
     "UserMessage",
@@ -108,6 +123,7 @@ __all__ = [
     # Protocol - Tools
     "ToolCall",
     "ToolChoice",
+    "NamedToolChoice",
     "ToolDefinition",
     "FunctionDef",
     

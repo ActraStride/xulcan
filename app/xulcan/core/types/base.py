@@ -18,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field, AfterValidator, model_validat
 import warnings
 import re
 import math
+import base64
+import binascii
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -35,6 +37,15 @@ MAX_SEMANTIC_TEXT_LENGTH = 10_000_000
 
 ID_REGEX = re.compile(r'^[a-z0-9]([a-z0-9_\-]*[a-z0-9])?$')
 """Regex pattern for validating machine identifiers."""
+
+URL_REGEX = re.compile(
+    r'^https?://'  # Scheme: http:// or https://
+    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # Domain
+    r'localhost|'  # Localhost
+    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # IPv4
+    r'(?::\d+)?'  # Optional port
+    r'(?:/?|[/?]\S+)$', re.IGNORECASE
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -158,6 +169,51 @@ def _validate_single_line(v: str) -> str:
     return v
 
 
+def _validate_canonical_url(v: str) -> str:
+    """Validates that a string is a safe, absolute HTTP/HTTPS URL."""
+    if v is None: return v
+    v = v.strip()
+    
+    if not v:
+        raise ValueError("CanonicalURL cannot be empty")
+    
+    # Prevención explícita de Data URIs en el campo incorrecto
+    if v.lower().startswith("data:"):
+        raise ValueError("Data URIs are not allowed in CanonicalURL. Use Base64Data instead.")
+        
+    # Prevención de paths relativos (ej: "/images/logo.png")
+    if v.startswith("/"):
+        raise ValueError("Relative URLs are not allowed. Must be absolute (http/https).")
+        
+    if not URL_REGEX.match(v):
+        raise ValueError(f"Invalid URL format: '{v}'. Must be absolute HTTP/HTTPS.")
+        
+    return v
+
+def _validate_base64_data(v: str) -> str:
+    """Validates that a string is a valid Base64 encoded payload."""
+    if v is None: return v
+    
+    # 1. Limpieza básica (ignorar espacios/newlines que rompen decoders estrictos)
+    v_clean = re.sub(r'\s+', '', v)
+    
+    if not v_clean:
+        raise ValueError("Base64Data cannot be empty")
+        
+    # 2. Verificar caracteres válidos (A-Z, a-z, 0-9, +, /, =)
+    if not re.fullmatch(r'[A-Za-z0-9+/]*={0,2}', v_clean):
+        raise ValueError("Invalid Base64 characters detected. Only A-Z, a-z, 0-9, +, / are allowed.")
+        
+    # 3. Verificar decodificación real (Integridad estructural)
+    try:
+        # validate=True es importante para rechazar padding incorrecto
+        base64.b64decode(v_clean, validate=True)
+    except binascii.Error as e:
+        raise ValueError(f"Corrupt Base64 data: {str(e)}")
+        
+    return v_clean  # Devolvemos la versión limpia sin espacios
+
+
 def _validate_semantic_text(v: str) -> str:
     """Validates semantic text content to prevent DoS attacks.
 
@@ -195,6 +251,18 @@ CanonicalIdentifier = Annotated[
     str,
     AfterValidator(_validate_identifier),
     Field(description="Machine identifier (stripped, non-empty, max 128 chars)")
+]
+
+CanonicalURL = Annotated[
+    str,
+    AfterValidator(_validate_canonical_url),
+    Field(description="Absolute HTTP/HTTPS URL (no data URIs, no relative paths)")
+]
+
+Base64Data = Annotated[
+    str,
+    AfterValidator(_validate_base64_data),
+    Field(description="Valid Base64 encoded data string (whitespace stripped)")
 ]
 
 HumanLabel = Annotated[
