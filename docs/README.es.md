@@ -40,6 +40,35 @@ make dev
 curl http://localhost:8000/health/live
 ```
 
+### Desarrollo Local (uv, opcional)
+
+Ejecuta la API localmente con `uv` manteniendo Postgres/Redis en Docker.
+
+```bash
+# 1. Instalar uv (una vez)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+# 2. Crear venv e instalar dependencias
+make uv-setup
+
+# 3. Crear .env y ajustar hosts locales
+cp .env.example .env
+# Edita .env para uso local:
+# ENVIRONMENT=development
+# POSTGRES_SERVER=localhost
+# REDIS_HOST=localhost
+
+# 4. Iniciar dependencias
+make deps
+
+# 5. Ejecutar la API localmente
+make local
+
+# Si falla el file watching (permisos), desactiva reload:
+# make local LOCAL_RELOAD=0
+```
+
 ### Puntos de Acceso
 
 | Servicio | URL | Credenciales |
@@ -60,6 +89,10 @@ Proporcionamos un `Makefile` robusto para manejar tareas comunes. Ejecuta `make 
 | `make setup` | Genera secretos, archivo `.env` y construye las imágenes Docker. |
 | `make dev` | Inicia el stack completo (API + BD + Herramientas) y muestra los logs. |
 | `make up` | Inicia el stack en modo "detached" (silencioso/segundo plano). |
+| `make deps` | Inicia solo Postgres + Redis para uso local. |
+| `make deps-stop` | Detiene Postgres + Redis iniciados con `make deps`. |
+| `make uv-setup` | Crea el venv local e instala deps de desarrollo con uv. |
+| `make local` | Ejecuta la API localmente con uvicorn (usa `.env`). |
 | `make stop` | Detiene los contenedores sin eliminarlos. |
 | `make clean` | **Destructivo**. Elimina contenedores, volúmenes y caché local. |
 | `make test` | Ejecuta la suite de pytest dentro del contenedor. |
@@ -105,12 +138,14 @@ La configuración se gestiona mediante el archivo `.env` (creado automáticament
 
 ```bash
 # Aplicación
-APP_ENV=development
+ENVIRONMENT=development
 LOG_LEVEL=debug
 
 # Base de Datos y Redis
 POSTGRES_USER=xulcan
-POSTGRES_DB=xulcan_core
+POSTGRES_DB=xulcan_db
+POSTGRES_SERVER=postgres
+REDIS_HOST=redis
 REDIS_PORT=6379
 
 # Proveedores de IA (Obtén tus propias claves)
