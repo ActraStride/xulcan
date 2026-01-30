@@ -1,16 +1,30 @@
-"""Defines the foundational primitives for strict, immutable data modeling.
-
-This module establishes the root type system, enforcing data integrity and 
-predictability across the library. It focuses on three core concerns:
-
-1. Data Integrity: The `CanonicalRecord` base class enforces immutability 
-   (frozen instances) and strict schema validation (no unknown fields).
-2. Semantic Typing: Specialized string types (`CanonicalIdentifier`, `HumanLabel`) 
-   to distinguish between internal IDs and user-facing content.
-3. Resource Accounting: Standardized structures (`UsageStats`, `BudgetConfig`) 
-   to track and limit the fundamental costs of execution: Information (Tokens) 
-   and Time (Latency).
 """
+Defines the foundational primitives for strict, immutable data modeling.
+
+This module establishes the canonical type system for the core.
+Its purpose is to enforce invariants that make higher-level logic
+safe, predictable, and economically bounded.
+
+It focuses on three core concerns:
+
+1. Data Integrity
+The `CanonicalRecord` base class enforces immutability (frozen instances)
+and strict schema validation (no unknown fields), ensuring that once a
+state exists, it cannot silently drift or degrade.
+
+2. Defensive Semantic Typing
+Specialized string types (`MachineID`, `HumanLabel`,
+`SemanticText`, `ExternalID`, `MimeType`, etc.) act as explicit
+semantic and security boundaries, preventing malformed, ambiguous,
+or adversarial data from entering the system.
+
+3. Resource Accounting
+Standardized structures (`UsageStats`, `BudgetConfig`) model execution
+costs as conserved physical quantities—tokens and time—and validate
+their internal consistency, enabling deterministic budgeting and
+auditable execution limits.
+"""
+
 
 from typing import Optional, Annotated
 from enum import Enum
@@ -35,16 +49,26 @@ MAX_LABEL_LENGTH = 256
 MAX_SEMANTIC_TEXT_LENGTH = 10_000_000
 """Maximum allowed length for semantic text content to prevent DoS attacks (10MB)."""
 
+MAX_EXTERNAL_ID_LENGTH = 256
+"""Length sufficient for complex provider IDs (e.g., AWS ARNs, long UUIDs)."""
+
+MIME_TYPE_REGEX = re.compile(r'^[a-z0-9\.\-\+]+/[a-z0-9\.\-\+]+(;.*)?$', re.IGNORECASE)
+"""Regex for basic MIME type validation (type/subtype). Allows optional parameters."""
+
 ID_REGEX = re.compile(r'^[a-z0-9]([a-z0-9_\-]*[a-z0-9])?$')
 """Regex pattern for validating machine identifiers."""
 
 URL_REGEX = re.compile(
-    r'^https?://'  # Scheme: http:// or https://
-    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # Domain
-    r'localhost|'  # Localhost
-    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # IPv4
-    r'(?::\d+)?'  # Optional port
-    r'(?:/?|[/?]\S+)$', re.IGNORECASE
+    r'^https?://'                                                    # Scheme
+    r'(?:'
+        r'(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63}\.?' # Domain (2-63 chars TLD)
+        r'|localhost'                                                # Localhost
+        r'|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'                       # IPv4
+        r'|\[[0-9A-F:]+\]'                                           # IPv6 (Basic, requires brackets)
+    r')'
+    r'(?::\d+)?'                                                     # Port
+    r'(?:/?|[/?]\S+)$',
+    re.IGNORECASE
 )
 
 
@@ -56,15 +80,15 @@ class CanonicalRecord(BaseModel):
     """A base record providing shared configuration for all canonical data structures.
 
     This abstract base class serves as the foundation for all domain models within
-    the library. It enforces strict data validation rules to ensure that data
+    the core. It enforces strict data validation rules to ensure that data
     passing through the system is immutable and predictable.
 
     Configuration Behaviors:
         - **Immutability (frozen=True):** Instances cannot be modified after creation. 
-          This makes them thread-safe and hashable.
+        This makes them thread-safe and hashable.
         - **Strictness (extra='forbid'):** The model will raise a validation error 
-          if unknown fields are provided. This prevents silent failures caused by 
-          typos or outdated API responses.
+        if unknown fields are provided. This prevents silent failures caused by 
+        typos or outdated API responses.
 
     Example:
         >>> class MyConfig(CanonicalRecord):
@@ -77,14 +101,57 @@ class CanonicalRecord(BaseModel):
     model_config = ConfigDict(
         frozen=True,
         extra='forbid',
+        use_enum_values=False
     )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# STRING NORMALIZATION LOGIC
+# FLOAT VALIDATION HELPERS
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _validate_identifier(v: str) -> str:    
+
+def _validate_finite_float(v: Optional[float]) -> Optional[float]:
+    """Validates that a float value is finite, non-negative, and not NaN.
+    
+    Args:
+        v: The float value to validate.
+    
+    Returns:
+        The validated float value.
+    
+    Raises:
+        ValueError: If the value is NaN, Infinity, or negative.
+    """
+    if v is None:
+        return v
+    
+    if math.isnan(v):
+        raise ValueError("Value cannot be NaN. Must be a valid number.")
+    
+    if math.isinf(v):
+        raise ValueError("Value cannot be Infinity. Must be finite.")
+        
+    if v < 0:
+        raise ValueError("Value cannot be negative.")
+        
+    return v
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FINITE POSITIVE FLOAT TYPE
+# ═══════════════════════════════════════════════════════════════════════════
+
+FinitePositiveFloat = Annotated[
+    float,
+    AfterValidator(_validate_finite_float),
+    Field(description="Non-negative, finite floating point value.")
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STRING NORMALIZATION HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _validate_machine_identifier(v: str) -> str:    
     """Validates and normalizes a machine identifier string.
 
     Enforces that the string is not empty or whitespace-only after stripping,
@@ -100,14 +167,14 @@ def _validate_identifier(v: str) -> str:
         ValueError: If the string is empty, contains only whitespace, or exceeds 
                     the maximum allowed length.
     """
-    if v is None: # pragma: no cover
+    if v is None:
         return v
     v_stripped = v.strip()
     if not v_stripped:
-        raise ValueError("CanonicalIdentifier cannot be empty or whitespace only")
+        raise ValueError("MachineID cannot be empty or whitespace only")
     if len(v_stripped) > MAX_IDENTIFIER_LENGTH:
         raise ValueError(
-            f"CanonicalIdentifier exceeds maximum length of {MAX_IDENTIFIER_LENGTH} "
+            f"MachineID exceeds maximum length of {MAX_IDENTIFIER_LENGTH} "
             f"characters (got {len(v_stripped)})"
         )
     if not ID_REGEX.match(v_stripped):
@@ -118,7 +185,7 @@ def _validate_identifier(v: str) -> str:
     return v_stripped
 
 
-def _validate_single_line(v: str) -> str:
+def _validate_human_label(v: str) -> str:
     """Validates and normalizes a human-readable UI label.
 
     Enforces that the string is not empty, contains no newline characters,
@@ -135,20 +202,21 @@ def _validate_single_line(v: str) -> str:
         ValueError: If the string is empty, whitespace-only, contains newlines,
                     contains invisible control characters, or exceeds maximum length.
     """
-
-    # Early exit for None
-    if v is None: # pragma: no cover
+    if v is None:
         return v
     
     # Strip leading/trailing whitespace
     v = v.strip()
     
-    if not v: # pragma: no cover
+    if not v:
         raise ValueError("HumanLabel cannot be empty or whitespace only")
     
     # Check for newlines
     if '\n' in v or '\r' in v:
         raise ValueError("HumanLabel must be a single line (no newlines)")
+    
+    if not v.isprintable():
+        raise ValueError(f"HumanLabel contains non-printable characters")
     
     # Check for additional invisible control characters (ASCII 0-31 except space)
     # This prevents tabs, vertical tabs, backspaces, etc.
@@ -169,19 +237,30 @@ def _validate_single_line(v: str) -> str:
     return v
 
 
-def _validate_canonical_url(v: str) -> str:
-    """Validates that a string is a safe, absolute HTTP/HTTPS URL."""
-    if v is None: return v
+def _validate_safe_url(v: str) -> str:
+    """Validates that a string is a safe, absolute HTTP/HTTPS URL.
+    
+    Args:
+        v: The URL string to validate.
+    
+    Returns:
+        str: The validated URL string.
+    
+    Raises:
+        ValueError: If the URL is empty, a data URI, a relative path, or invalid format.
+    """
+    if v is None:
+        return v
     v = v.strip()
     
     if not v:
-        raise ValueError("CanonicalURL cannot be empty")
+        raise ValueError("SafeURL cannot be empty")
     
-    # Prevención explícita de Data URIs en el campo incorrecto
+    # Explicit prevention of Data URIs in the wrong field
     if v.lower().startswith("data:"):
-        raise ValueError("Data URIs are not allowed in CanonicalURL. Use Base64Data instead.")
+        raise ValueError("Data URIs are not allowed in SafeURL. Use Base64Data instead.")
         
-    # Prevención de paths relativos (ej: "/images/logo.png")
+    # Prevention of relative paths (e.g., "/images/logo.png")
     if v.startswith("/"):
         raise ValueError("Relative URLs are not allowed. Must be absolute (http/https).")
         
@@ -190,28 +269,40 @@ def _validate_canonical_url(v: str) -> str:
         
     return v
 
+
 def _validate_base64_data(v: str) -> str:
-    """Validates that a string is a valid Base64 encoded payload."""
-    if v is None: return v
+    """Validates that a string is a valid Base64 encoded payload.
     
-    # 1. Limpieza básica (ignorar espacios/newlines que rompen decoders estrictos)
+    Args:
+        v: The Base64 string to validate.
+    
+    Returns:
+        str: The validated and cleaned Base64 string.
+    
+    Raises:
+        ValueError: If the string is empty, contains invalid characters, or is corrupted.
+    """
+    if v is None:
+        return v
+    
+    # Basic cleaning (ignore spaces/newlines that break strict decoders)
     v_clean = re.sub(r'\s+', '', v)
     
     if not v_clean:
         raise ValueError("Base64Data cannot be empty")
         
-    # 2. Verificar caracteres válidos (A-Z, a-z, 0-9, +, /, =)
+    # Verify valid characters (A-Z, a-z, 0-9, +, /, =)
     if not re.fullmatch(r'[A-Za-z0-9+/]*={0,2}', v_clean):
         raise ValueError("Invalid Base64 characters detected. Only A-Z, a-z, 0-9, +, / are allowed.")
         
-    # 3. Verificar decodificación real (Integridad estructural)
+    # Verify actual decoding (structural integrity)
     try:
-        # validate=True es importante para rechazar padding incorrecto
+        # validate=True is important to reject incorrect padding
         base64.b64decode(v_clean, validate=True)
     except binascii.Error as e:
         raise ValueError(f"Corrupt Base64 data: {str(e)}")
         
-    return v_clean  # Devolvemos la versión limpia sin espacios
+    return v_clean
 
 
 def _validate_semantic_text(v: str) -> str:
@@ -230,7 +321,7 @@ def _validate_semantic_text(v: str) -> str:
     Raises:
         ValueError: If the string exceeds the maximum allowed length.
     """
-    if v is None: # pragma: no cover
+    if v is None:
         return v
     
     if len(v) > MAX_SEMANTIC_TEXT_LENGTH:
@@ -243,19 +334,78 @@ def _validate_semantic_text(v: str) -> str:
     return v
 
 
+def _validate_external_id(v: str) -> str:
+    """Validates identifiers generated by external providers (Postel's Law).
+    
+    Accepts a wider range of characters than MachineID but enforces
+    safety constraints (printable characters, length).
+    
+    Args:
+        v: The external ID string to validate.
+    
+    Returns:
+        str: The validated external ID string.
+    
+    Raises:
+        ValueError: If the ID is empty, too long, or contains unsafe characters.
+    """
+    if v is None:
+        return v
+    v_stripped = v.strip()
+    
+    if not v_stripped:
+        raise ValueError("ExternalID cannot be empty or whitespace only")
+        
+    if len(v_stripped) > MAX_EXTERNAL_ID_LENGTH:
+        raise ValueError(
+            f"ExternalID exceeds max length of {MAX_EXTERNAL_ID_LENGTH}"
+        )
+    
+    # Security: Ensure no invisible control characters (NULL bytes, etc.)
+    if not v_stripped.isprintable():
+        raise ValueError("ExternalID contains unsafe control characters")
+        
+    return v_stripped
+
+
+def _validate_mime_type(v: str) -> str:
+    """Validates that a string looks like a standard MIME type (type/subtype).
+    
+    Args:
+        v: The MIME type string to validate.
+    
+    Returns:
+        str: The validated MIME type string in lowercase.
+    
+    Raises:
+        ValueError: If the MIME type is empty or has invalid format.
+    """
+    if v is None:
+        return v
+    v_stripped = v.strip().lower()  # MIME types are case-insensitive
+    
+    if not v_stripped:
+        raise ValueError("MimeType cannot be empty")
+        
+    if not MIME_TYPE_REGEX.match(v_stripped):
+        raise ValueError(f"Invalid MIME type format: '{v}'. Expected 'type/subtype'.")
+        
+    return v_stripped
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # SEMANTIC PRIMITIVES
 # ═══════════════════════════════════════════════════════════════════════════
 
-CanonicalIdentifier = Annotated[
+MachineID = Annotated[
     str,
-    AfterValidator(_validate_identifier),
+    AfterValidator(_validate_machine_identifier),
     Field(description="Machine identifier (stripped, non-empty, max 128 chars)")
 ]
 
-CanonicalURL = Annotated[
+SafeURL = Annotated[
     str,
-    AfterValidator(_validate_canonical_url),
+    AfterValidator(_validate_safe_url),
     Field(description="Absolute HTTP/HTTPS URL (no data URIs, no relative paths)")
 ]
 
@@ -267,7 +417,7 @@ Base64Data = Annotated[
 
 HumanLabel = Annotated[
     str,
-    AfterValidator(_validate_single_line),
+    AfterValidator(_validate_human_label),
     Field(description="Human-readable label (single line, max 256 chars)")
 ]
 
@@ -275,6 +425,19 @@ SemanticText = Annotated[
     str,
     AfterValidator(_validate_semantic_text),
     Field(description="Raw semantic content (whitespace preserved, max 10MB)")
+]
+
+
+ExternalID = Annotated[
+    str,
+    AfterValidator(_validate_external_id),
+    Field(description="External provider identifier (liberal validation, strict safety)")
+]
+
+MimeType = Annotated[
+    str,
+    AfterValidator(_validate_mime_type),
+    Field(description="Standard MIME type string (e.g., 'image/png', 'application/json')")
 ]
 
 
@@ -299,7 +462,7 @@ class UsageStats(CanonicalRecord):
     Aggregation Behavior:
         - When adding two instances (`stats1 + stats2`), token counts are summed.
         - **Latency is also summed**, assuming sequential execution. Parallel 
-          orchestration logic should handle time aggregation separately if needed.
+        orchestration logic should handle time aggregation separately if needed.
 
     Attributes:
         input_tokens: Number of tokens in the input prompt.
@@ -357,8 +520,7 @@ class UsageStats(CanonicalRecord):
         )
     )
 
-    latency_ms: float = Field(
-        ge=0.0,
+    latency_ms: FinitePositiveFloat = Field(
         description="Wall-clock execution time in milliseconds."
     )
 
@@ -452,34 +614,16 @@ class UsageStats(CanonicalRecord):
     def validate_latency_plausibility(self) -> 'UsageStats':
         """Validates physical plausibility of resource consumption.
         
-        Enforces two critical invariants:
-        1. Latency must be a finite, valid number (not NaN or Infinity).
-        2. Warns if tokens were processed but no latency was recorded, which violates
-           the physical constraint that processing matter (tokens) requires time.
+        Enforces conservation of time: processing matter (tokens) requires time.
         
         Exception: 100% cache hits (cache_read_input_tokens == input_tokens) with
         zero output tokens may legitimately have near-zero latency.
+        
+        Note: Finite checks (NaN/Inf) are handled by the field type definition.
 
         Returns:
             UsageStats: The validated instance.
-        
-        Raises:
-            ValueError: If latency_ms is NaN or Infinity.
         """
-        # Critical: reject exotic floating point values that would corrupt aggregation
-        if math.isnan(self.latency_ms):
-            raise ValueError(
-                f"Latency cannot be NaN. This indicates a calculation error in "
-                f"upstream timing logic. Allowing NaN would contaminate all "
-                f"aggregated metrics."
-            )
-        
-        if math.isinf(self.latency_ms):
-            raise ValueError(
-                f"Latency cannot be Infinity. This indicates a calculation error "
-                f"or timeout handling issue in upstream timing logic."
-            )
-        
         # Skip plausibility check if no processing occurred
         if self.total_tokens == 0:
             return self
@@ -523,7 +667,7 @@ class UsageStats(CanonicalRecord):
         
         Returns:
             float: A value between 0.0 and 1.0 representing the cache hit ratio.
-                   Returns 0.0 if no input tokens exist or cache was not used.
+                Returns 0.0 if no input tokens exist or cache was not used.
         
         Example:
             >>> stats = UsageStats(input_tokens=100, output_tokens=50, 
@@ -552,6 +696,18 @@ class UsageStats(CanonicalRecord):
 # ECONOMIC PRIMITIVES (BUDGETING)
 # ═══════════════════════════════════════════════════════════════════════════
 
+class BudgetExceededError(RuntimeError):
+    """Raised when a strict execution limit (HARD_CAP) is breached.
+    
+    This exception is part of the contract defined by BudgetStrategy.HARD_CAP.
+    It indicates that the operation was halted to preserve resources.
+    """
+    def __init__(self, message: str, current_usage: float, limit: float):
+        self.current_usage = current_usage
+        self.limit = limit
+        super().__init__(f"{message} (Usage: {current_usage} > Limit: {limit})")
+
+
 class BudgetStrategy(str, Enum):
     """Defines the behavior policy when a resource limit is reached.
     
@@ -560,9 +716,9 @@ class BudgetStrategy(str, Enum):
 
     Attributes:
         HARD_CAP: Immediately terminates the execution path (raises BudgetExceededError).
-                  Typically used for autonomous agents (scrapers, workers) to prevent loops.
+                Typically used for autonomous agents (scrapers, workers) to prevent loops.
         SOFT_NOTIFY: Allows execution to continue but flags the run (e.g., logs a warning).
-                     Typically used for critical paths or VIP requests where completion is priority.
+                    Typically used for critical paths or VIP requests where completion is priority.
     """
     HARD_CAP = "hard_cap"
     SOFT_NOTIFY = "soft_notify"
@@ -580,9 +736,9 @@ class BudgetConfig(CanonicalRecord):
 
     Attributes:
         token_limit: Maximum allowed total tokens (input + output). If None, 
-                     unbounded (provider limits still apply).
+                    unbounded (provider limits still apply).
         time_limit_ms: Maximum allowed execution duration in milliseconds. If None,
-                       unbounded (though server timeouts may apply).
+                    unbounded (though server timeouts may apply).
         strategy: Enforcement policy (Strict vs. Passive) triggered when EITHER limit is hit.
 
     Example:
@@ -597,10 +753,9 @@ class BudgetConfig(CanonicalRecord):
         gt=0,
         description="Hard limit on total tokens. If None, no limit is enforced."
     )
-    
-    time_limit_ms: Optional[float] = Field(
+
+    time_limit_ms: Optional[FinitePositiveFloat] = Field(
         default=None,
-        gt=0.0,
         description="Hard limit on total execution time (latency). If None, no limit is enforced."
     )
 
@@ -616,12 +771,18 @@ class BudgetConfig(CanonicalRecord):
         A HARD_CAP strategy without any defined limits is logically meaningless
         and likely indicates a configuration error. This validator enforces that
         at least one resource constraint exists when hard enforcement is requested.
+        
+        For SOFT_NOTIFY without limits, emits a warning since this creates a
+        passive observer that tracks but never enforces any constraints.
 
         Returns:
             BudgetConfig: The validated instance.
 
         Raises:
             ValueError: If strategy is HARD_CAP but both limits are None.
+        
+        Warns:
+            UserWarning: If strategy is SOFT_NOTIFY but both limits are None.
         """
         if self.strategy == BudgetStrategy.HARD_CAP:
             if self.token_limit is None and self.time_limit_ms is None:
@@ -630,35 +791,35 @@ class BudgetConfig(CanonicalRecord):
                     "(token_limit or time_limit_ms) to be defined. "
                     "An unbounded hard cap is semantically meaningless."
                 )
-        return self
-    
-    @model_validator(mode='after')
-    def validate_time_limit_finiteness(self) -> 'BudgetConfig':
-        """Ensures time limits are physically plausible values.
         
-        Rejects NaN or Infinity in time_limit_ms to prevent runtime errors during
-        budget enforcement logic. Budget comparisons (usage < limit) would fail
-        silently with exotic floating point values.
+        if self.strategy == BudgetStrategy.SOFT_NOTIFY:
+            if self.is_unbounded:
+                warnings.warn(
+                    "BudgetConfig with SOFT_NOTIFY and no limits acts as a passive "
+                    "observer. It will track resource consumption but never enforce "
+                    "constraints. If this is intentional (e.g., for analytics), you "
+                    "can safely ignore this warning.",
+                    UserWarning,
+                    stacklevel=2
+                )
+        
+        return self
 
+    @model_validator(mode='after')
+    def validate_positive_time_limit(self) -> 'BudgetConfig':
+        """Ensures time limit is greater than zero when specified.
+        
+        A zero time limit would be logically impossible to satisfy, as any operation
+        requires non-zero time to execute.
+        
         Returns:
             BudgetConfig: The validated instance.
         
         Raises:
-            ValueError: If time_limit_ms is NaN or Infinity.
+            ValueError: If time_limit_ms is exactly 0.
         """
-        if self.time_limit_ms is not None:
-            if math.isnan(self.time_limit_ms):
-                raise ValueError(
-                    f"time_limit_ms cannot be NaN. Budget enforcement requires "
-                    f"finite, comparable values."
-                )
-            
-            if math.isinf(self.time_limit_ms):
-                raise ValueError(
-                    f"time_limit_ms cannot be Infinity. Use None for unbounded "
-                    f"time limits instead."
-                )
-        
+        if self.time_limit_ms is not None and self.time_limit_ms == 0:
+            raise ValueError("time_limit_ms must be greater than 0")
         return self
     
     @property
