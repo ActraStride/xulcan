@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -37,11 +37,17 @@ class ConversationManager:
 
     def get_messages(self) -> List[Dict[str, Any]]:
         return [
-            {"role": msg.role, "content": msg.content, **({"metadata": msg.metadata} if msg.metadata else {})}
+            {
+                "role": msg.role,
+                "content": msg.content,
+                **({"metadata": msg.metadata} if msg.metadata else {}),
+            }
             for msg in self.messages
         ]
 
-    def add_tool_result(self, tool_name: str, result: Any, success: bool = True) -> None:
+    def add_tool_result(
+        self, tool_name: str, result: Any, success: bool = True
+    ) -> None:
         content = f"Tool '{tool_name}' executed successfully: {result}"
         if not success:
             content = f"Tool '{tool_name}' failed: {result}"
@@ -68,7 +74,9 @@ class ConversationManager:
         return {
             "total_messages": len(self.messages),
             "user_messages": len([m for m in self.messages if m.role == "user"]),
-            "assistant_messages": len([m for m in self.messages if m.role == "assistant"]),
+            "assistant_messages": len(
+                [m for m in self.messages if m.role == "assistant"]
+            ),
             "tool_messages": len([m for m in self.messages if m.role == "tool"]),
             "context_keys": list(self.context.keys()),
             "oldest_message": self.messages[0].timestamp if self.messages else None,

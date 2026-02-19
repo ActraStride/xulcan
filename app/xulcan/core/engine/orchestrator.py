@@ -47,9 +47,7 @@ class LLMOrchestrator:
 
         self.runner = ToolRunner(registry)
         self.execution_engine = ExecutionEngine(self.runner, adapter)
-        self.conversation = (
-            ConversationManager() if self.config.enable_memory else None
-        )
+        self.conversation = ConversationManager() if self.config.enable_memory else None
         self.last_tool_results: List[Dict[str, Any]] = []
 
         self.system_prompt = self._create_system_prompt()

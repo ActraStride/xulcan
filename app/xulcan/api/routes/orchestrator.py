@@ -26,7 +26,9 @@ from xulcan.tools import stdlib as tool_stdlib
 router = APIRouter(prefix="/orchestrate", tags=["orchestrator"])
 
 
-def _build_registries(request: OrchestrateRequest) -> tuple[ToolRegistry, ModelRegistry]:
+def _build_registries(
+    request: OrchestrateRequest,
+) -> tuple[ToolRegistry, ModelRegistry]:
     tool_registry = ToolRegistry()
     model_registry = ModelRegistry()
 

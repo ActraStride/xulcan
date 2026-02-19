@@ -3,6 +3,7 @@
 Test suite for application health check endpoints including liveness probes,
 readiness probes, and legacy health endpoints used for container orchestration.
 """
+
 from fastapi import status
 from fastapi.testclient import TestClient
 from xulcan.main import app
@@ -10,10 +11,10 @@ from xulcan.main import app
 
 def test_liveness_probe_returns_200(client: TestClient):
     """Verify liveness probe returns 200 OK when process is running.
-    
+
     The liveness endpoint should always return 200 if the application process
     is alive, regardless of the application's internal state.
-    
+
     Args:
         client: FastAPI test client fixture.
     """
@@ -24,11 +25,11 @@ def test_liveness_probe_returns_200(client: TestClient):
 
 def test_readiness_probe_happy_path(client: TestClient):
     """Verify readiness probe returns 200 OK when application is ready.
-    
+
     The readiness endpoint should return 200 when app.state.is_ready is True,
     indicating all dependencies are initialized and the application can
     handle requests.
-    
+
     Args:
         client: FastAPI test client fixture with is_ready set to True.
     """
@@ -55,11 +56,11 @@ def test_readiness_probe_unhealthy_state(client: TestClient, monkeypatch):
 
 def test_legacy_health_deprecation(client: TestClient):
     """Verify legacy health endpoint returns deprecation notice.
-    
+
     The /health endpoint is maintained for backward compatibility but should
     include a deprecation notice directing clients to use /health/live or
     /health/ready instead.
-    
+
     Args:
         client: FastAPI test client fixture.
     """

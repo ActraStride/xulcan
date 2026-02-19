@@ -89,7 +89,9 @@ class OpenAIClient(BaseLLMClient):
                     tool_calls.append(call.model_dump())
                 else:
                     tool_calls.append(call)
-        return LLMResponse(content=message.content or "", tool_calls=tool_calls, raw=response)
+        return LLMResponse(
+            content=message.content or "", tool_calls=tool_calls, raw=response
+        )
 
 
 class AnthropicClient(BaseLLMClient):
@@ -181,7 +183,8 @@ class AnthropicClient(BaseLLMClient):
                         "type": "tool_use",
                         "id": getattr(block, "id", None) or block.get("id"),
                         "name": getattr(block, "name", None) or block.get("name"),
-                        "input": getattr(block, "input", None) or block.get("input", {}),
+                        "input": getattr(block, "input", None)
+                        or block.get("input", {}),
                     }
                 )
 
@@ -269,38 +272,48 @@ class LLMClientFactory:
 
         if provider == "openai":
             client = OpenAIClient(
-                api_key=self.settings.OPENAI_API_KEY.get_secret_value()
-                if self.settings.OPENAI_API_KEY
-                else None,
+                api_key=(
+                    self.settings.OPENAI_API_KEY.get_secret_value()
+                    if self.settings.OPENAI_API_KEY
+                    else None
+                ),
                 provider="openai",
             )
         elif provider == "zai":
             client = OpenAIClient(
-                api_key=self.settings.ZAI_API_KEY.get_secret_value()
-                if self.settings.ZAI_API_KEY
-                else None,
+                api_key=(
+                    self.settings.ZAI_API_KEY.get_secret_value()
+                    if self.settings.ZAI_API_KEY
+                    else None
+                ),
                 base_url=self.settings.ZAI_BASE_URL,
                 provider="zai",
             )
         elif provider == "openrouter":
             client = OpenAIClient(
-                api_key=self.settings.OPENROUTER_API_KEY.get_secret_value()
-                if self.settings.OPENROUTER_API_KEY
-                else None,
+                api_key=(
+                    self.settings.OPENROUTER_API_KEY.get_secret_value()
+                    if self.settings.OPENROUTER_API_KEY
+                    else None
+                ),
                 base_url=self.settings.OPENROUTER_BASE_URL,
                 provider="openrouter",
             )
         elif provider == "anthropic":
             client = AnthropicClient(
-                api_key=self.settings.ANTHROPIC_API_KEY.get_secret_value()
-                if self.settings.ANTHROPIC_API_KEY
-                else None
+                api_key=(
+                    self.settings.ANTHROPIC_API_KEY.get_secret_value()
+                    if self.settings.ANTHROPIC_API_KEY
+                    else None
+                )
             )
         elif provider == "gemini":
             client = GeminiClient(
-                api_key=self.settings.GEMINI_API_KEY.get_secret_value()
-                if self.settings.GEMINI_API_KEY
-                else None
+                api_key=(
+                    self.settings.GEMINI_API_KEY.get_secret_value()
+                    if self.settings.GEMINI_API_KEY
+                    else None
+                )
             )
         else:
             raise ValueError(f"Unsupported provider: {provider}")

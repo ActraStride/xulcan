@@ -11,12 +11,12 @@ import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 from xulcan.api.middleware import RequestCorrelationMiddleware
 from xulcan.api import orchestrator_router
-from xulcan.config import Settings, get_settings
+from xulcan.config import get_settings
 from xulcan.core.logging_config import (
     configure_structlog_wrapper,
     get_logger,
@@ -53,7 +53,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_structlog_wrapper(settings)
 
     logger = get_logger("lifespan")
-    logger.info("🚀 Xulcan System Startup Initiated", extra={"env": settings.ENVIRONMENT})
+    logger.info(
+        "🚀 Xulcan System Startup Initiated", extra={"env": settings.ENVIRONMENT}
+    )
 
     # Initialize shared resources and attach to app.state for dependency injection
     try:
@@ -87,29 +89,29 @@ app.include_router(orchestrator_router)
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Handle unhandled exceptions globally.
-    
+
     Catches any exception not handled by specific route handlers. Logs the
     full error with structured context (including request_id) and returns
     a generic 500 JSON response to the client to avoid leaking internal details.
     """
     # Import logger locally or use a module-level one if available
     logger = get_logger("exception_handler")
-    
+
     # Log with full traceback and context
     logger.error(
         "Unhandled exception occurred",
         error=str(exc),
         path=request.url.path,
         method=request.method,
-        exc_info=True  # This ensures the stack trace is included in the log
+        exc_info=True,  # This ensures the stack trace is included in the log
     )
-    
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "detail": "Internal Server Error", 
+            "detail": "Internal Server Error",
             # Optionally include request_id in the error response for support
-            "request_id": request.headers.get("X-Request-ID") 
+            "request_id": request.headers.get("X-Request-ID"),
         },
     )
 
@@ -148,7 +150,7 @@ async def readiness_probe(request: Request) -> dict[str, str]:
     if not getattr(request.app.state, "is_ready", False):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="System is starting up or dependencies are unavailable"
+            detail="System is starting up or dependencies are unavailable",
         )
 
     return {"status": "ready"}

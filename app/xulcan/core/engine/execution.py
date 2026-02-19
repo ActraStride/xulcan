@@ -20,7 +20,9 @@ class ExecutionEngine:
         self.runner = runner
         self.adapter = adapter
 
-    async def execute_tool(self, tool_call: Dict[str, Any], max_retries: int = 3) -> Any:
+    async def execute_tool(
+        self, tool_call: Dict[str, Any], max_retries: int = 3
+    ) -> Any:
         converted = self.adapter.convert_tool_call(tool_call)
         tool_name = converted["tool_name"]
         inputs = converted["inputs"]
@@ -48,7 +50,11 @@ class ExecutionEngine:
         tool_names: List[str] = []
         for tool_call in tool_calls:
             try:
-                tool_names.append(self.adapter.convert_tool_call(tool_call).get("tool_name", "unknown"))
+                tool_names.append(
+                    self.adapter.convert_tool_call(tool_call).get(
+                        "tool_name", "unknown"
+                    )
+                )
             except Exception:
                 tool_names.append("unknown")
 
@@ -84,7 +90,9 @@ class ExecutionEngine:
         results: List[Dict[str, Any]] = []
         for tool_call in tool_calls:
             try:
-                tool_name = self.adapter.convert_tool_call(tool_call).get("tool_name", "unknown")
+                tool_name = self.adapter.convert_tool_call(tool_call).get(
+                    "tool_name", "unknown"
+                )
             except Exception:
                 tool_name = "unknown"
             try:
