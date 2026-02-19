@@ -16,6 +16,8 @@
 
 ## Quick Start
 
+For an end-to-end launch + first `/orchestrate` request, see `docs/GETTING_STARTED.md`.
+
 ### Prerequisites
 - Docker & Docker Compose
 - Make (Standard in Linux/Mac. Windows users can use WSL2 or Git Bash)
@@ -151,6 +153,8 @@ REDIS_PORT=6379
 # AI Providers (Get your own keys)
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
 
 ### Secrets Management

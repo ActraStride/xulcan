@@ -15,6 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 from xulcan.api.middleware import RequestCorrelationMiddleware
+from xulcan.api import orchestrator_router
 from xulcan.config import Settings, get_settings
 from xulcan.core.logging_config import (
     configure_structlog_wrapper,
@@ -80,6 +81,7 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestCorrelationMiddleware)
+app.include_router(orchestrator_router)
 
 
 @app.exception_handler(Exception)

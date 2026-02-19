@@ -42,6 +42,7 @@ class Settings(BaseSettings):
         OPENAI_API_KEY: API key for OpenAI services.
         GEMINI_API_KEY: API key for Google Gemini services.
         ANTHROPIC_API_KEY: API key for Anthropic services.
+        OPENROUTER_API_KEY: API key for OpenRouter services.
     """
 
     model_config = SettingsConfigDict(
@@ -102,6 +103,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[SecretStr] = None
     GEMINI_API_KEY: Optional[SecretStr] = None
     ANTHROPIC_API_KEY: Optional[SecretStr] = None
+    ZAI_API_KEY: Optional[SecretStr] = None
+    ZAI_BASE_URL: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[SecretStr] = None
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 
     @field_validator("SECRET_KEY")
     @classmethod
