@@ -16,6 +16,8 @@
 
 ## Quick Start
 
+For an end-to-end launch + first `/orchestrate` request, see `docs/GETTING_STARTED.md`.
+
 ### Prerequisites
 - Docker & Docker Compose
 - Make (Standard in Linux/Mac. Windows users can use WSL2 or Git Bash)
@@ -40,6 +42,35 @@ make dev
 curl http://localhost:8000/health/live
 ```
 
+### Local Development (uv, optional)
+
+Run the API locally with `uv` while keeping Postgres/Redis in Docker.
+
+```bash
+# 1. Install uv (once)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+# 2. Create venv and install dependencies
+make uv-setup
+
+# 3. Create .env and set local hosts
+cp .env.example .env
+# Edit .env for local runs:
+# ENVIRONMENT=development
+# POSTGRES_SERVER=localhost
+# REDIS_HOST=localhost
+
+# 4. Start dependencies
+make deps
+
+# 5. Run the API locally
+make local
+
+# If file watching fails (permissions), disable reload:
+# make local LOCAL_RELOAD=0
+```
+
 ### Access Points
 
 | Service | URL | Credentials |
@@ -60,6 +91,10 @@ We provide a robust `Makefile` to handle common tasks. Run `make help` to see al
 | `make setup` | Generates secrets, `.env` file, and builds Docker images. |
 | `make dev` | Starts the full stack (API + DB + Tools) and tails logs. |
 | `make up` | Starts the stack in detached mode (silent). |
+| `make deps` | Starts only Postgres + Redis for local runs. |
+| `make deps-stop` | Stops Postgres + Redis started by `make deps`. |
+| `make uv-setup` | Creates a local venv and installs dev deps via uv. |
+| `make local` | Runs the API locally with uvicorn (uses `.env`). |
 | `make stop` | Stops containers without removing them. |
 | `make clean` | **Destructive**. Removes containers, volumes, and local cache. |
 | `make test` | Runs the pytest suite inside the container. |
@@ -105,17 +140,23 @@ Configuration is managed via `.env` file (created automatically by `make setup`)
 
 ```bash
 # Application
-APP_ENV=development
+ENVIRONMENT=development
 LOG_LEVEL=debug
 
 # Database & Redis
 POSTGRES_USER=xulcan
-POSTGRES_DB=xulcan_core
+POSTGRES_DB=xulcan_db
+POSTGRES_SERVER=postgres
+REDIS_HOST=redis
 REDIS_PORT=6379
 
 # AI Providers (Get your own keys)
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEEPSEEK_API_KEY=sk-...
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 ```
 
 ### Secrets Management

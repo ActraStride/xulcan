@@ -111,8 +111,8 @@ services:
     # [OPS] Enable init process for proper signal handling and zombie reaping.
     init: true
     env_file:
-      # Load non-sensitive configuration from environment file.
-      - .env.example
+      # Load runtime configuration from project .env (created by make setup).
+      - .env
     environment:
       # [SEC] Database URLs exclude passwords; application reads secrets at runtime.
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-xulcan}@postgres:5432/${POSTGRES_DB:-xulcan_db}

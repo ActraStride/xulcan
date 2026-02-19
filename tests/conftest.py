@@ -3,7 +3,7 @@
 Provide isolated test settings and client fixtures for the application test suite.
 All fixtures ensure tests run without external dependencies on environment files or secrets.
 """
-import os
+
 from typing import Generator
 from unittest import mock
 
@@ -16,6 +16,7 @@ from xulcan.config import Settings, get_settings
 # ==============================================================================
 # CONFIGURATION FIXTURES
 # ==============================================================================
+
 
 @pytest.fixture(scope="session")
 def mock_settings() -> Settings:
@@ -35,8 +36,9 @@ def mock_settings() -> Settings:
         # Provide test credentials to satisfy Pydantic validators
         POSTGRES_PASSWORD="test_pg_pass",
         REDIS_PASSWORD="test_redis_pass",
-        _env_file=None  # Bypass production environment file
+        _env_file=None,  # Bypass production environment file
     )
+
 
 @pytest.fixture(scope="function")
 def client(mock_settings: Settings) -> Generator[TestClient, None, None]:
@@ -53,25 +55,27 @@ def client(mock_settings: Settings) -> Generator[TestClient, None, None]:
     """
     # Preserve original dependency state
     original_override = app.dependency_overrides.get(get_settings)
-    
+
     # Apply test configuration override
     app.dependency_overrides[get_settings] = lambda: mock_settings
-    
+
     # Ensure application readiness state
     app.state.is_ready = True
-    
+
     with TestClient(app) as test_client:
         yield test_client
-    
+
     # Restore original dependency state
     if original_override:
         app.dependency_overrides[get_settings] = original_override
     else:
         app.dependency_overrides.pop(get_settings, None)
 
+
 # ==============================================================================
 # MOCKING HELPERS
 # ==============================================================================
+
 
 @pytest.fixture
 def mock_fs_open():
