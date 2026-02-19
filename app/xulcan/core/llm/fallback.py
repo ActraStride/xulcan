@@ -19,13 +19,13 @@ from xulcan.core.llm.client import (
 
 
 @dataclass(frozen=True)
-class ProviderCandidate:
+class FallbackOption:
     provider: str
     model: Optional[str] = None
 
 
-class AllProvidersFailedError(Exception):
-    """Raised when all configured provider attempts fail."""
+class AllFallbacksFailedError(Exception):
+    """Raised when all configured fallback options fail."""
 
     def __init__(self, providers: Sequence[str], errors: Sequence[str]) -> None:
         self.providers = list(providers)
@@ -34,13 +34,13 @@ class AllProvidersFailedError(Exception):
         super().__init__(f"All provider attempts failed: {detail}")
 
 
-class ResilientClient(BaseLLMClient):
+class FallbackClient(BaseLLMClient):
     """Try providers in order until one succeeds."""
 
     def __init__(
         self,
         factory: LLMClientFactory,
-        candidates: Sequence[ProviderCandidate | str],
+        candidates: Sequence[FallbackOption | str],
     ) -> None:
         self.factory = factory
         self.candidates = [
@@ -48,9 +48,9 @@ class ResilientClient(BaseLLMClient):
         ]
 
     @staticmethod
-    def _normalize_candidate(candidate: ProviderCandidate | str) -> ProviderCandidate:
+    def _normalize_candidate(candidate: FallbackOption | str) -> FallbackOption:
         if isinstance(candidate, str):
-            return ProviderCandidate(provider=candidate)
+            return FallbackOption(provider=candidate)
         return candidate
 
     async def create_chat_completion(
@@ -89,4 +89,4 @@ class ResilientClient(BaseLLMClient):
                 errors.append(f"{provider}: {exc}")
                 continue
 
-        raise AllProvidersFailedError(providers=attempted, errors=errors)
+        raise AllFallbacksFailedError(providers=attempted, errors=errors)

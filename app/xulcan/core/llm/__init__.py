@@ -9,15 +9,15 @@ from .client import (
     LLMValidationError,
 )
 from .base import BaseLLMAdapter
-from .resilience import AllProvidersFailedError, ProviderCandidate, ResilientClient
+from .fallback import AllFallbacksFailedError, FallbackClient, FallbackOption
 from .adapters import AnthropicAdapter, BaseAdapter, GeminiAdapter, OpenAIAdapter
 
 __all__ = [
     "BaseLLMAdapter",
     "BaseLLMClient",
-    "ResilientClient",
-    "ProviderCandidate",
-    "AllProvidersFailedError",
+    "FallbackClient",
+    "FallbackOption",
+    "AllFallbacksFailedError",
     "LLMAuthenticationError",
     "LLMProviderError",
     "LLMValidationError",

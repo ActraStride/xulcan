@@ -6,10 +6,10 @@ from xulcan.core.llm.client import (
     LLMResponse,
     LLMValidationError,
 )
-from xulcan.core.llm.resilience import (
-    AllProvidersFailedError,
-    ProviderCandidate,
-    ResilientClient,
+from xulcan.core.llm.fallback import (
+    AllFallbacksFailedError,
+    FallbackClient,
+    FallbackOption,
 )
 
 
@@ -60,16 +60,16 @@ class StubFactory:
 
 
 @pytest.mark.asyncio
-async def test_resilient_client_falls_back_on_provider_error():
+async def test_fallback_client_falls_back_on_provider_error():
     primary = FailingClient(LLMProviderError(provider="openai", message="timeout"))
     backup = StaticClient(LLMResponse(content="ok", tool_calls=[]))
 
-    resilient = ResilientClient(
+    fallback_client = FallbackClient(
         factory=StubFactory({"openai": primary, "openrouter": backup}),
         candidates=["openai", "openrouter"],
     )
 
-    response = await resilient.create_chat_completion(
+    response = await fallback_client.create_chat_completion(
         messages=[{"role": "user", "content": "hi"}],
         tools=None,
         tool_choice=None,
@@ -84,18 +84,18 @@ async def test_resilient_client_falls_back_on_provider_error():
 
 
 @pytest.mark.asyncio
-async def test_resilient_client_falls_back_on_validation_error():
+async def test_fallback_client_falls_back_on_validation_error():
     primary = FailingClient(
         LLMValidationError(provider="gemini", message="bad response shape")
     )
     backup = StaticClient(LLMResponse(content="from backup", tool_calls=[]))
 
-    resilient = ResilientClient(
+    fallback_client = FallbackClient(
         factory=StubFactory({"gemini": primary, "openai": backup}),
         candidates=["gemini", "openai"],
     )
 
-    response = await resilient.create_chat_completion(
+    response = await fallback_client.create_chat_completion(
         messages=[{"role": "user", "content": "hi"}],
         tools=None,
         tool_choice=None,
@@ -110,7 +110,7 @@ async def test_resilient_client_falls_back_on_validation_error():
 
 
 @pytest.mark.asyncio
-async def test_resilient_client_raises_when_all_providers_fail():
+async def test_fallback_client_raises_when_all_options_fail():
     openai_client = FailingClient(
         LLMProviderError(provider="openai", message="rate limit")
     )
@@ -118,16 +118,16 @@ async def test_resilient_client_raises_when_all_providers_fail():
         LLMValidationError(provider="gemini", message="missing candidates")
     )
 
-    resilient = ResilientClient(
+    fallback_client = FallbackClient(
         factory=StubFactory({"openai": openai_client, "gemini": gemini_client}),
         candidates=[
-            ProviderCandidate(provider="openai"),
-            ProviderCandidate(provider="gemini"),
+            FallbackOption(provider="openai"),
+            FallbackOption(provider="gemini"),
         ],
     )
 
-    with pytest.raises(AllProvidersFailedError) as exc_info:
-        await resilient.create_chat_completion(
+    with pytest.raises(AllFallbacksFailedError) as exc_info:
+        await fallback_client.create_chat_completion(
             messages=[{"role": "user", "content": "hello"}],
             tools=None,
             tool_choice=None,
