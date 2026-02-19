@@ -83,6 +83,8 @@ def _get_adapter(provider: str):
         return OpenAIAdapter()
     if provider == "openrouter":
         return OpenAIAdapter()
+    if provider == "deepseek":
+        return OpenAIAdapter()
     if provider == "zai":
         return OpenAIAdapter()
     if provider == "anthropic":
@@ -104,6 +106,7 @@ async def orchestrate(
     adapters = {
         "openai": OpenAIAdapter(),
         "openrouter": OpenAIAdapter(),
+        "deepseek": OpenAIAdapter(),
         "zai": OpenAIAdapter(),
         "anthropic": AnthropicAdapter(),
         "gemini": GeminiAdapter(),

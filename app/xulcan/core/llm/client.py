@@ -30,6 +30,24 @@ class BaseLLMClient:
         raise NotImplementedError
 
 
+class LLMProviderError(Exception):
+    """Raised when a provider call fails for non-auth reasons."""
+
+    def __init__(self, *, provider: str, message: Optional[str] = None) -> None:
+        self.provider = provider
+        super().__init__(message or f"Provider call failed for '{provider}'.")
+
+
+class LLMValidationError(Exception):
+    """Raised when a provider response is malformed or unexpected."""
+
+    def __init__(self, *, provider: str, message: Optional[str] = None) -> None:
+        self.provider = provider
+        super().__init__(
+            message or f"Provider response validation failed for '{provider}'."
+        )
+
+
 class LLMAuthenticationError(Exception):
     """Raised when an LLM provider rejects credentials."""
 
@@ -68,6 +86,7 @@ class OpenAIClient(BaseLLMClient):
         model: str,
     ) -> LLMResponse:
         from openai import AuthenticationError as OpenAIAuthenticationError
+        from openai import OpenAIError
 
         try:
             response = await self.client.chat.completions.create(
@@ -80,6 +99,13 @@ class OpenAIClient(BaseLLMClient):
             )
         except OpenAIAuthenticationError as exc:
             raise LLMAuthenticationError(provider=self.provider) from exc
+        except OpenAIError as exc:
+            raise LLMProviderError(provider=self.provider, message=str(exc)) from exc
+
+        if not getattr(response, "choices", None):
+            raise LLMValidationError(
+                provider=self.provider, message="Provider returned no choices."
+            )
 
         message = response.choices[0].message
         tool_calls = []
@@ -98,6 +124,7 @@ class AnthropicClient(BaseLLMClient):
     def __init__(self, api_key: Optional[str]) -> None:
         from anthropic import AsyncAnthropic
 
+        self.provider = "anthropic"
         self.client = AsyncAnthropic(api_key=api_key)
 
     def _to_anthropic_messages(
@@ -158,15 +185,24 @@ class AnthropicClient(BaseLLMClient):
         elif isinstance(tool_choice, str):
             choice = {"type": tool_choice}
 
-        response = await self.client.messages.create(
-            model=model,
-            system=system,
-            messages=converted,
-            tools=tools or None,
-            temperature=temperature,
-            max_tokens=max_tokens or 1024,
-            tool_choice=choice,
-        )
+        try:
+            response = await self.client.messages.create(
+                model=model,
+                system=system,
+                messages=converted,
+                tools=tools or None,
+                temperature=temperature,
+                max_tokens=max_tokens or 1024,
+                tool_choice=choice,
+            )
+        except Exception as exc:
+            raise LLMProviderError(provider=self.provider, message=str(exc)) from exc
+
+        if not getattr(response, "content", None):
+            raise LLMValidationError(
+                provider=self.provider,
+                message="Provider returned empty content blocks.",
+            )
 
         content_text_parts: List[str] = []
         tool_calls: List[Dict[str, Any]] = []
@@ -199,6 +235,7 @@ class GeminiClient(BaseLLMClient):
     def __init__(self, api_key: Optional[str]) -> None:
         import google.generativeai as genai
 
+        self.provider = "gemini"
         genai.configure(api_key=api_key)
         self.genai = genai
 
@@ -241,18 +278,25 @@ class GeminiClient(BaseLLMClient):
             if tool_choice:
                 kwargs["tool_config"] = {"function_calling_config": {"mode": "AUTO"}}
 
-        response = await asyncio.to_thread(gen_model.generate_content, **kwargs)
+        try:
+            response = await asyncio.to_thread(gen_model.generate_content, **kwargs)
+        except Exception as exc:
+            raise LLMProviderError(provider=self.provider, message=str(exc)) from exc
 
         content_text_parts: List[str] = []
         tool_calls: List[Dict[str, Any]] = []
         candidates = getattr(response, "candidates", None) or []
-        if candidates:
-            parts = candidates[0].content.parts
-            for part in parts:
-                if hasattr(part, "text") and part.text:
-                    content_text_parts.append(part.text)
-                if hasattr(part, "function_call") and part.function_call:
-                    tool_calls.append({"function_call": part.function_call})
+        if not candidates:
+            raise LLMValidationError(
+                provider=self.provider, message="Provider returned no candidates."
+            )
+
+        parts = candidates[0].content.parts
+        for part in parts:
+            if hasattr(part, "text") and part.text:
+                content_text_parts.append(part.text)
+            if hasattr(part, "function_call") and part.function_call:
+                tool_calls.append({"function_call": part.function_call})
 
         return LLMResponse(
             content="".join(content_text_parts),
@@ -299,6 +343,16 @@ class LLMClientFactory:
                 base_url=self.settings.OPENROUTER_BASE_URL,
                 provider="openrouter",
             )
+        elif provider == "deepseek":
+            client = OpenAIClient(
+                api_key=(
+                    self.settings.DEEPSEEK_API_KEY.get_secret_value()
+                    if self.settings.DEEPSEEK_API_KEY
+                    else None
+                ),
+                base_url=self.settings.DEEPSEEK_BASE_URL,
+                provider="deepseek",
+            )
         elif provider == "anthropic":
             client = AnthropicClient(
                 api_key=(
@@ -320,3 +374,9 @@ class LLMClientFactory:
 
         self._clients[provider] = client
         return client
+
+    def create_client(self, config: Dict[str, Any]) -> BaseLLMClient:
+        provider = str(config.get("provider", "")).strip()
+        if not provider:
+            raise ValueError("Client config must include a non-empty 'provider' value.")
+        return self.get_client(provider)

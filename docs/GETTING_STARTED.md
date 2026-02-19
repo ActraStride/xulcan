@@ -125,7 +125,8 @@ curl http://localhost:8000/orchestrate -H "Content-Type: application/json" -d '{
 
 ## Notes
 
-- Supported providers in this orchestration route: `openai`, `openrouter`, `zai`, `anthropic`, `gemini`.
+- Supported providers in this orchestration route: `openai`, `openrouter`, `deepseek`, `zai`, `anthropic`, `gemini`.
 - For Z.ai, set both `ZAI_API_KEY` and `ZAI_BASE_URL` in `.env`.
 - For OpenRouter, set both `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` in `.env`.
+- For DeepSeek, set both `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` in `.env`.
 - If `/orchestrate` returns provider auth errors, confirm the correct API key is present in `.env`.

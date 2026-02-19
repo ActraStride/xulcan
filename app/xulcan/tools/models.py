@@ -16,7 +16,7 @@ class ModelSpec(BaseModel):
     model_config = {"protected_namespaces": ()}
 
     name: str
-    provider: Literal["openai", "openrouter", "anthropic", "gemini", "zai"]
+    provider: Literal["openai", "openrouter", "anthropic", "gemini", "zai", "deepseek"]
     model_id: str
     system_prompt: Optional[str] = None
     tools: List[str] = []

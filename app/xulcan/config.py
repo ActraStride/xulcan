@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     ZAI_BASE_URL: Optional[str] = None
     OPENROUTER_API_KEY: Optional[SecretStr] = None
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    DEEPSEEK_API_KEY: Optional[SecretStr] = None
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
 
     @field_validator("SECRET_KEY")
     @classmethod
