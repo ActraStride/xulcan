@@ -130,3 +130,18 @@ curl http://localhost:8000/orchestrate -H "Content-Type: application/json" -d '{
 - For OpenRouter, set both `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` in `.env`.
 - For DeepSeek, set both `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` in `.env`.
 - If `/orchestrate` returns provider auth errors, confirm the correct API key is present in `.env`.
+
+## Core Smoke Test (Optional)
+
+To validate provider wiring directly at the core layer (without calling the
+API route), run:
+
+```bash
+python scripts/test_core_connection.py
+```
+
+Use strict mode to fail when a provider key is missing:
+
+```bash
+python scripts/test_core_connection.py --strict
+```
