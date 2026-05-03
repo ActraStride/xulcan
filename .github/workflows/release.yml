@@ -1,0 +1,51 @@
+name: Build and Publish Xulcan Engine
+
+on:
+  push:
+    branches:
+      - develop      # 🚀 Snapshot Mode: Se dispara con cada push a develop
+    tags:
+      - 'v*.*.*'     # 💎 Release Mode: Se dispara con tags de versión
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: docker.io/silixe/xulcan
+          tags: |
+            # 1. Si haces un Tag (v0.3.0), genera la versión limpia (0.3.0)
+            type=semver,pattern={{version}}
+            
+            # 2. Genera el tag 'latest' solo cuando se haga un tag oficial en main
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+            # 3. MAGIC: Cada push a 'develop' sobreescribe el tag 'dev' (Tu Snapshot)
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
+
+            # 4. Incluye el SHA corto del commit por si necesitas auditar algo
+            type=sha,format=short,prefix=sha-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
