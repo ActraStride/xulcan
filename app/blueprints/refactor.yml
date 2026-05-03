@@ -1,0 +1,17 @@
+xulcan_version: "2.0"
+id: "fallback-tester"
+name: "Resilient Agent"
+version: "1.0.0"
+
+# 1. MODELO PRINCIPAL (Este va a fallar)
+model: "google/modelo-que-no-existe"
+
+# 2. MODELO DE RESPALDO (Este es el que te salvará)
+fallbacks:
+  - provider: "google"
+    name: "gemini-2.5-flash"
+    temperature: 0.7
+
+system_prompt: "Eres un agente resiliente. Saluda al usuario."
+governance:
+  budget: unlimited

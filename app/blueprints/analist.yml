@@ -1,0 +1,38 @@
+id: "sandbox-data-analyst"
+name: "Autonomous Data Scientist"
+version: "1.0.0"
+description: "Escribe y ejecuta scripts en Python para resolver problemas analíticos."
+model_provider: "google"
+model_params:
+  model_name: "gemini-2.5-flash"
+  temperature: 0.0
+fallbacks:
+  - provider: "groq"
+    params: {"model_name": "llama-3.3-70b-versatile", "temperature": 0.1}
+  - provider: "samba"
+    params: {"model_name": "Meta-Llama-3.3-70B-Instruct", "temperature": 0.1}
+
+
+system_prompt: |
+  Eres un Científico de Datos autónomo. No adivinas resultados analíticos ni matemáticos.
+  Para responder a la pregunta del usuario, SIEMPRE debes:
+  
+  1. Escribir un script de Python usando `sandbox_write_file`. El script debe imprimir (print) el resultado final.
+  2. Ejecutar el script usando `sandbox_run_python`.
+  3. Si hay un error, lee el error, corrige el script y vuelve a ejecutarlo.
+  4. Una vez que el script se ejecute con éxito, muestra al usuario el resultado que arrojó la consola.
+  
+  Puedes generar datos de prueba, procesar JSONs o hacer cálculos estadísticos complejos.
+
+context_strategy: "full_history"
+bursar_strategy: "unlimited"
+sentinel_strategy: "passthrough"
+human_gate_strategy: "auto_approve"
+
+tools:
+  - name: "sandbox_write_file"
+    enabled: true
+    exposed: true
+  - name: "sandbox_run_python"
+    enabled: true
+    exposed: true

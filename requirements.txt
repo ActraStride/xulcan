@@ -23,9 +23,10 @@ tenacity==8.2.3
 # Pin closely; provider APIs change frequently.
 openai==1.12.0
 anthropic==0.18.1
-google-generativeai==0.4.1
+google-genai>=0.5.0
 # [COST] Token counting for context window and billing management.
 tiktoken==0.6.0
+ollama==0.3.0
 
 # === PERSISTENCE ===
 # [DATA] Async PostgreSQL driver optimized for high concurrency.
@@ -59,3 +60,26 @@ structlog==24.1.0
 # === UTILITIES ===
 python-dotenv==1.0.1
 python-multipart==0.0.9
+
+# === XULCAN KERNEL & TEMPLATING ===
+# [CORE] Rendering engine for System Prompts and Tool Arguments mapping.
+Jinja2==3.1.3
+
+# === EXECUTION & SANDBOXING ===
+# [OPS] Docker daemon SDK for ephemeral SandboxExecutor containers.
+docker>=7.1.0
+requests<2.32.0  # (Opcional, pero ayuda si docker 7.1.0 aún te da guerra)
+
+# === CLI & DEVELOPER EXPERIENCE ===
+#[CLI] Command-line interface builder for 'xulcan run' and 'xulcan pull'.
+typer==0.9.0
+rich==13.7.0
+
+# === STDLIB (STANDARD LIBRARY) ===
+#[DATA] HTML parsing for the network_fetch_webpage tool.
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
+# === CRYPTOGRAPHY ===
+# [SEC] Required if using Fernet for Application-Level Encrypted VaultStore.
+cryptography==42.0.2

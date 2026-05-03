@@ -1,0 +1,58 @@
+# agents/debugger_agent.yml
+
+# ── Identidad ──────────────────────────────────────────────────
+id: "debugger-agent"
+name: "Debugger (Gemini)"
+version: "1.0.0"
+description: |
+  Agente de propósito general para pruebas y depuración del sistema.
+  Responde preguntas, ejecuta código en el sandbox y reporta resultados.
+
+# ── Cognición ──────────────────────────────────────────────────
+model_provider: "google"
+model_params:
+  model_name: "gemini-2.5-flash"
+  temperature: 0.0
+  max_tokens: 4096
+
+# ── Personalidad ───────────────────────────────────────────────
+system_prompt: |
+  Eres un agente de depuración técnica. Tu trabajo es:
+  1. Responder preguntas con precisión y brevedad.
+  2. Cuando el usuario pida ejecutar código, usa sandbox_run_python.
+  3. Reportar siempre el resultado exacto de lo que hiciste.
+  No agregues texto innecesario. Ve directo al punto.
+
+# ── Atención ───────────────────────────────────────────────────
+context_strategy: "full_history"
+context_params: {}
+
+# ── Herramientas ───────────────────────────────────────────────
+tools:
+  - name: "sandbox_run_python"
+    enabled: true
+    exposed: true
+  - name: "sandbox_run_bash"
+    enabled: true
+    exposed: true
+  - name: "sandbox_read_file"
+    enabled: true
+    exposed: true
+  - name: "sandbox_write_file"
+    enabled: true
+    exposed: true
+
+# ── Restricciones ──────────────────────────────────────────────
+timeout_seconds: 120
+
+# ── Governance ─────────────────────────────────────────────────
+bursar_strategy: "unlimited"
+bursar_params: {}
+
+sentinel_strategy: "passthrough"
+sentinel_params: {}
+
+human_gate_strategy: "terminal"
+human_gate_params:
+  show_arguments: true
+  timeout_seconds: 0

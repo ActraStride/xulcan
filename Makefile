@@ -58,7 +58,7 @@ test: ## Run core unit tests (Fast). Usage: make test ARGS="-k agent"
 
 fuzz: ## Run stress/fuzzing tests (Slow).
 	@echo "🔥 Running STRESS/FUZZ tests (The Crazy Monkey)..."
-	@$(COMPOSE) exec app pytest tests/stress $(ARGS)
+	@$(COMPOSE) exec app pytest tests/props $(ARGS)
 
 test-all: ## Run ALL tests (Unit + Stress).
 	@echo "🚀 Running ALL tests..."

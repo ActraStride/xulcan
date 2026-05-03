@@ -1,0 +1,23 @@
+id: "sre-ops-agent"
+name: "SRE Ops (Protected)"
+model_provider: "google"
+model_params:
+  model_name: "gemini-2.0-flash"
+  temperature: 0.0
+system_prompt: |
+  Eres un ingeniero de Site Reliability Engineering (SRE). 
+  Tienes herramientas para ejecutar comandos en la terminal del servidor (sandbox_run_bash).
+  Debes ser extremadamente cuidadoso. Nunca ejecutes comandos destructivos.
+context_strategy: "full_history"
+bursar_strategy: "unlimited"
+# --- GOBERNANZA ESTRICTA ---
+sentinel_strategy: "blocklist"
+sentinel_params:
+  blocked_tools: ["drop_production_database"]
+  dangerous_patterns: ["rm -rf", "mkfs", "sudo"]
+human_gate_strategy: "api" # Esto hace que la API espere tu click en el Dashboard Nexus
+human_gate_params:
+  timeout_seconds: 600.0 # 10 minutos para que el humano responda en la UI
+tools:
+  - "sandbox_run_bash"
+  - "drop_production_database"
