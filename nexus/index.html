@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xulcan · Nexus Glass</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/force-graph"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-deep: #050509;
+            --glass-bg: rgba(20, 18, 30, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.06);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+
+            --cog-light: #C4B5FD; --cog-main: #8B5CF6; --cog-glow: rgba(139, 92, 246, 0.3);
+            --tool-light: #6EE7B7; --tool-main: #10B981; --tool-glow: rgba(16, 185, 129, 0.3);
+            --sys-main: #6366F1; --err-main: #F43F5E; --warn-main: #FBBF24;
+            --err-glow: rgba(244, 63, 94, 0.25); --warn-glow: rgba(251, 191, 36, 0.25);
+            --infra-main: #F59E0B; --infra-light: #FDE68A; --infra-glow: rgba(245, 158, 11, 0.3);
+
+            --text-bright: #F8FAFC; --text-main: #E2E8F0; --text-muted: #94A3B8;
+
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body { background: var(--bg-deep); color: var(--text-main); overflow: hidden; cursor: none; }
+
+        /* ── Cursor Orgánico ── */
+        #cur { position: fixed; width: 6px; height: 6px; background: var(--text-bright); border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%, -50%); box-shadow: 0 0 10px #fff; }
+        #cur-t { position: fixed; width: 40px; height: 40px; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 50%; pointer-events: none; z-index: 9998; transform: translate(-50%, -50%); transition: width 0.2s, height 0.2s; }
+        body:active #cur-t { width: 30px; height: 30px; border-color: var(--cog-main); }
+
+        /* ── Fondo Fluido ── */
+        .ambient-blobs { position: fixed; inset: 0; pointer-events: none; z-index: 0; filter: blur(100px); opacity: 0.6; }
+        .blob { position: absolute; border-radius: 50%; animation: float 20s infinite ease-in-out alternate; }
+        .b1 { width: 40vw; height: 40vw; background: var(--cog-glow); top: -10vw; left: -10vw; animation-delay: 0s; }
+        .b2 { width: 35vw; height: 35vw; background: rgba(16, 185, 129, 0.15); bottom: -10vw; right: -5vw; animation-delay: -5s; }
+        .b3 { width: 30vw; height: 30vw; background: rgba(99, 102, 241, 0.15); top: 30%; left: 40%; animation-delay: -10s; }
+        @keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(10vw, 5vw) scale(1.2); } }
+
+        .noise-layer { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.03; background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E'); }
+
+        #graph { position: relative; z-index: 10; }
+
+        /* ── Glass Panel Base ── */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: var(--glass-shadow);
+        }
+
+        /* ── Dynamic Island ── */
+        .top-island {
+            position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 50; display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px 8px 24px; width: min(920px, 94vw); border-radius: 50px;
+            gap: 16px;
+        }
+        .logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .logo-title { font-size: 16px; font-weight: 700; color: var(--text-bright); letter-spacing: 0.5px; display:flex; align-items:center; gap:6px; }
+        .logo-title span { color: var(--cog-light); font-weight: 400; }
+        .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tool-main); box-shadow: 0 0 10px var(--tool-main); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        /* ── Connection Status Indicator ── */
+        .connection-status {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 20px;
+            font-family: 'Fira Code', monospace; font-size: 9px; font-weight: 500;
+            text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        .connection-status.online {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--tool-light);
+        }
+        .connection-status.offline {
+            background: rgba(244, 63, 94, 0.15);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: var(--err-main);
+        }
+        .connection-status.connecting {
+            background: rgba(251, 191, 36, 0.15);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            color: var(--warn-main);
+        }
+        .connection-status .status-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: currentColor;
+        }
+        .connection-status.online .status-dot { animation: statusPulse 2s infinite; }
+        .connection-status.connecting .status-dot { animation: statusPulse 0.5s infinite; }
+        @keyframes statusPulse { 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:0.5; transform:scale(0.8)} }
+
+        .stats-inline { display: flex; gap: 20px; border-left: 1px solid var(--glass-border); border-right: 1px solid var(--glass-border); padding: 0 20px; }
+        .stat-item { display: flex; flex-direction: column; align-items: center; }
+        .stat-val { font-family: 'Fira Code', monospace; font-size: 14px; font-weight: 500; line-height: 1; }
+        .stat-lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+        /* ── Blueprint Selector & Reload ── */
+        .agent-select-wrap {
+            position: relative;
+            display: flex; align-items: center;
+            flex-shrink: 0;
+        }
+        .agent-select {
+            appearance: none; -webkit-appearance: none;
+            background: rgba(139, 92, 246, 0.08);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            color: var(--cog-light);
+            font-family: 'Fira Code', monospace;
+            font-size: 10px; font-weight: 500;
+            padding: 8px 28px 8px 12px;
+            border-radius: 20px;
+            outline: none; cursor: pointer;
+            transition: 0.2s;
+            max-width: 180px;
+            text-overflow: ellipsis;
+        }
+        .agent-select:hover, .agent-select:focus {
+            background: rgba(139, 92, 246, 0.15);
+            border-color: var(--cog-main);
+            box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+        }
+        .agent-select option {
+            background: var(--bg-deep);
+            color: var(--text-bright);
+        }
+        .agent-select-wrap svg {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            width: 10px; height: 10px; fill: none; stroke: var(--cog-light); stroke-width: 2; pointer-events: none;
+        }
+        .agent-select-wrap::before {
+            content: '';
+            position: absolute; left: -12px; top: 50%; transform: translateY(-50%);
+            width: 1px; height: 20px;
+            background: var(--glass-border);
+        }
+        .btn-reload {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; gap: 6px;
+            font-family: 'Fira Code', monospace; font-size: 9px;
+            margin-left: 8px;
+        }
+        .btn-reload:hover { background: rgba(139,92,246,0.15); border-color: var(--cog-main); color: var(--cog-light); }
+        .btn-reload.loading { opacity: 0.6; pointer-events: none; }
+        .btn-reload svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+        .btn-reload.loading svg { animation: spin 1s linear infinite; }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+        /* ── Run Status Badge ── */
+        .run-status {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 14px; border-radius: 30px;
+            font-family: 'Fira Code', monospace; font-size: 10px; font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .run-status.awaiting {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+        }
+        .run-status.running {
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: var(--cog-light);
+            animation: runPulse 1.5s infinite;
+        }
+        .run-status.completed {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--tool-light);
+        }
+        .run-status.error {
+            background: rgba(244, 63, 94, 0.15);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: var(--err-main);
+        }
+        @keyframes runPulse { 0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,0.3)} 50%{box-shadow:0 0 15px 3px rgba(139,92,246,0.2)} }
+        .run-status .spinner {
+            width: 10px; height: 10px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-top-color: currentColor;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* ── Session Dropdown ── */
+        .session-wrap { position: relative; flex-shrink: 0; }
+        .session-btn {
+            background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+            padding: 8px 16px; border-radius: 30px; font-family: 'Fira Code', monospace;
+            font-size: 11px; color: var(--text-main); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;
+        }
+        .session-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+        .session-btn span { color: var(--cog-light); }
+        .session-menu {
+            position: absolute; top: calc(100% + 12px); right: 0; width: 340px;
+            padding: 16px; display: none; flex-direction: column; gap: 8px; z-index: 100;
+        }
+        .session-menu.open { display: flex; animation: fadeUp 0.2s ease; }
+        @keyframes fadeUp { from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)} }
+
+        .sm-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .sm-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        .btn-new { background: var(--cog-main); color: #fff; border: none; padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-new:hover { background: var(--cog-light); color: #000; box-shadow: 0 0 10px var(--cog-main); }
+
+        .sess-list { max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+        .sess-list::-webkit-scrollbar { width: 4px; }
+        .sess-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        .sess-item { padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid transparent; cursor: pointer; transition: 0.2s; }
+        .sess-item:hover { background: rgba(255,255,255,0.05); border-color: var(--glass-border); }
+        .sess-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .sess-id { font-family: 'Fira Code', monospace; font-size: 11px; color: var(--text-bright); }
+        .sess-del { color: var(--text-muted); background: none; border: none; cursor: pointer; font-size: 12px; }
+        .sess-del:hover { color: var(--err-main); }
+        .sess-meta { font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between; }
+
+        /* ── Command Dock — LIMPIO Y COMPACTO ── */
+        .command-dock {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: min(760px, 94vw); z-index: 50; padding: 14px 20px;
+            display: flex; flex-direction: column; gap: 14px; border-radius: 32px;
+        }
+        .dock-slider-wrap { position: relative; padding: 0 10px; }
+        .dock-slider {
+            width: 100%; -webkit-appearance: none; height: 4px; border-radius: 2px;
+            background: rgba(255,255,255,0.05); outline: none; cursor: pointer;
+        }
+        .dock-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 12px; height: 12px; border-radius: 5px;
+            background: var(--text-bright); box-shadow: 0 0 10px rgba(255,255,255,0.8); cursor: pointer; transition: transform 0.1s;
+        }
+        .dock-slider::-webkit-slider-thumb:hover { transform: scale(1.5); }
+
+        .dock-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .media-group { display: flex; align-items: center; gap: 10px; }
+        .btn-icon { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); color: var(--text-main); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+        .btn-icon:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+        .btn-icon svg { width: 16px; height: 16px; fill: currentColor; }
+        .btn-play { background: var(--cog-main); border: none; width: 44px; height: 44px; box-shadow: 0 4px 15px var(--cog-glow); border-radius: 50%;}
+        .btn-play:hover { background: var(--cog-light); color: #000; transform: scale(1.05); box-shadow: 0 6px 20px var(--cog-glow); }
+        .dock-counter { font-family: 'Fira Code', monospace; font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+        .dock-counter span { color: var(--text-bright); }
+
+        .prompt-box { flex: 1; display: flex; align-items: center; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.04); border-radius: 20px; padding: 4px 4px 4px 16px; transition: 0.3s; }
+        .prompt-box:focus-within { border-color: var(--cog-main); background: rgba(139, 92, 246, 0.05); box-shadow: inset 0 0 20px rgba(139,92,246,0.1); }
+        .prompt-box input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-bright); font-family: 'Outfit', sans-serif; font-size: 14px; }
+        .prompt-box input::placeholder { color: rgba(255,255,255,0.2); }
+        .btn-send { background: var(--text-bright); color: var(--bg-deep); border: none; width: 36px; height: 36px; border-radius: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+        .btn-send:hover { background: var(--cog-light); transform: scale(1.05); }
+        .btn-send:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-send svg { width: 16px; height: 16px; fill: currentColor; }
+
+        .settings-group { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 20px; }
+        .btn-speed { background: transparent; border: none; color: var(--text-muted); font-size: 10px; font-weight: 600; padding: 6px 10px; border-radius: 16px; cursor: pointer; transition: 0.2s; }
+        .btn-speed.active { background: rgba(255,255,255,0.1); color: var(--text-bright); }
+        .btn-view { border-left: 1px solid var(--glass-border); padding-left: 10px; margin-left: 4px; color: var(--text-muted); background: none; border-top:none; border-right:none; border-bottom:none; font-size: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; display:flex; align-items:center; gap:4px;}
+        .btn-view:hover { color: var(--text-bright); }
+
+        /* ── Legend ── */
+        .legend-stack { position: fixed; left: 24px; bottom: 130px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
+        .legend-pill { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; font-size: 10px; color: var(--text-muted); backdrop-filter: blur(10px); }
+        .lp-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        /* ── RAM Panel ── */
+        .ram-trigger {
+            position: fixed; left: 24px; top: 50%; transform: translateY(-50%); z-index: 60;
+            writing-mode: vertical-lr; text-orientation: mixed; padding: 16px 8px;
+            font-family: 'Fira Code', monospace; font-size: 10px; letter-spacing: 2px;
+            color: var(--text-muted); cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 8px;
+        }
+        .ram-trigger:hover { color: var(--tool-light); }
+        .ram-trigger .rt-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--tool-main); box-shadow: 0 0 10px var(--tool-main); }
+
+        .ram-panel {
+            position: fixed; left: 70px; top: 100px; bottom: 100px; width: 320px; z-index: 55;
+            transform: translateX(-400px); opacity: 0; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .ram-panel.open { transform: translateX(0); opacity: 1; }
+        .panel-header { padding: 20px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; }
+        .ph-title { font-family: 'Fira Code', monospace; font-size: 12px; color: var(--tool-light); display: flex; align-items: center; gap: 8px; }
+        .btn-close { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; transition: 0.2s; }
+        .btn-close:hover { color: #fff; transform: scale(1.1); }
+        .panel-body { flex: 1; overflow-y: auto; padding: 20px; }
+        .panel-body::-webkit-scrollbar { width: 4px; }
+        .panel-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        .ram-kv { margin-bottom: 16px; background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px; border: 1px solid rgba(16, 185, 129, 0.05); }
+        .ram-k { font-family: 'Fira Code', monospace; font-size: 10px; color: var(--tool-main); margin-bottom: 8px; }
+        .ram-v { font-family: 'Fira Code', monospace; font-size: 11px; color: var(--text-main); word-break: break-all; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            position: fixed; right: 24px; top: 100px; bottom: 100px;
+            width: min(440px, 35vw); z-index: 60;
+            transform: translateX(500px); opacity: 0;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .sidebar.open { transform: translateX(0); opacity: 1; }
+
+        .sb-header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--glass-border);
+            position: relative;
+            overflow: hidden;
+        }
+        .sb-header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: var(--sb-accent, var(--cog-main));
+            opacity: 0.8;
+            filter: blur(0px);
+            box-shadow: 0 0 12px 1px var(--sb-accent, var(--cog-main));
+        }
+        .sb-header-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .sb-header-left { flex: 1; min-width: 0; }
+
+        .sb-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 10px 3px 6px; border-radius: 6px;
+            font-family: 'Fira Code', monospace; font-size: 9px; font-weight: 500;
+            text-transform: uppercase; letter-spacing: 1.5px;
+            margin-bottom: 10px;
+            border: 1px solid var(--sb-accent-muted, rgba(139,92,246,0.3));
+            background: var(--sb-accent-bg, rgba(139,92,246,0.08));
+            color: var(--sb-accent, var(--cog-light));
+        }
+        .sb-badge-dot {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: var(--sb-accent, var(--cog-main));
+            box-shadow: 0 0 6px var(--sb-accent, var(--cog-main));
+            flex-shrink: 0;
+        }
+        .sb-title { font-size: 20px; font-weight: 700; color: var(--text-bright); line-height: 1.15; margin-bottom: 4px; }
+        .sb-id { font-family: 'Fira Code', monospace; font-size: 9px; color: var(--text-muted); letter-spacing: 0.5px; }
+
+        .meta-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 6px; padding: 14px 20px 0;
+        }
+        .meta-card {
+            background: rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 10px; padding: 10px 12px;
+            transition: border-color 0.2s;
+        }
+        .meta-card:hover { border-color: rgba(255,255,255,0.1); }
+        .mc-l {
+            font-size: 8px; color: var(--text-muted); text-transform: uppercase;
+            letter-spacing: 1.2px; margin-bottom: 5px;
+        }
+        .mc-v {
+            font-family: 'Fira Code', monospace; font-size: 10px;
+            color: var(--sb-accent, var(--cog-light));
+            word-break: break-all; line-height: 1.4;
+        }
+
+        .sb-body { flex: 1; overflow-y: auto; padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
+        .sb-body::-webkit-scrollbar { width: 3px; }
+        .sb-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+        .btn-toggle {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+            color: var(--text-muted); padding: 5px 12px; border-radius: 8px;
+            font-family: 'Fira Code', monospace; font-size: 9px; letter-spacing: 1px;
+            cursor: pointer; transition: 0.2s; text-transform: uppercase;
+        }
+        .btn-toggle:hover { border-color: var(--sb-accent, var(--cog-main)); color: var(--text-bright); }
+
+        /* ── BLOQUES DE EVENTO ── */
+        .ev-block {
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(10, 8, 20, 0.5);
+            backdrop-filter: blur(16px);
+            overflow: hidden;
+            animation: evEnter 0.3s ease;
+        }
+        @keyframes evEnter { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+        .ev-block::before {
+            content: '';
+            display: block; height: 1px;
+            background: linear-gradient(90deg, transparent 0%, var(--ev-color, var(--cog-main)) 40%, transparent 100%);
+            box-shadow: 0 0 8px 0px var(--ev-color, var(--cog-main));
+            opacity: 0.7;
+        }
+
+        .ev-head {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 14px 10px;
+        }
+        .ev-icon {
+            width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07);
+            color: var(--ev-color, var(--cog-light));
+        }
+        .ev-icon svg { width: 13px; height: 13px; fill: currentColor; }
+        .ev-label {
+            font-family: 'Fira Code', monospace; font-size: 10px; font-weight: 500;
+            color: var(--ev-color, var(--cog-light)); letter-spacing: 1px; text-transform: uppercase;
+        }
+        .ev-sublabel {
+            font-size: 9px; color: var(--text-muted); margin-top: 1px;
+        }
+
+        .ev-body { padding: 0 14px 14px; }
+
+        .ev-code {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px; padding: 10px 12px;
+            font-family: 'Fira Code', monospace; font-size: 10px; line-height: 1.6;
+            color: var(--text-main); white-space: pre-wrap; word-break: break-all;
+            max-height: 220px; overflow-y: auto;
+        }
+        .ev-code::-webkit-scrollbar { width: 3px; }
+        .ev-code::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+        .ev-prose {
+            font-size: 12px; color: var(--text-main); line-height: 1.65;
+        }
+
+        .ev-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .ev-chip {
+            font-family: 'Fira Code', monospace; font-size: 9px;
+            padding: 3px 8px; border-radius: 5px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+            color: var(--text-muted);
+        }
+        .ev-chip strong { color: var(--ev-color, var(--cog-light)); font-weight: 500; }
+
+        .ev-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 10px 0; }
+
+        /* ── Variantes de color por tipo ── */
+        .ev--model    { --ev-color: var(--cog-main); }
+        .ev--model .ev-label { color: var(--cog-light); }
+        .ev--model .ev-icon { color: var(--cog-light); }
+
+        .ev--tool     { --ev-color: var(--tool-main); }
+        .ev--tool .ev-label { color: var(--tool-light); }
+        .ev--tool .ev-icon { color: var(--tool-light); }
+
+        .ev--tool-out { --ev-color: var(--tool-light); }
+        .ev--tool-out .ev-label { color: var(--tool-light); }
+        .ev--tool-out .ev-icon { color: var(--tool-light); }
+        .ev--tool-out .ev-code { color: var(--tool-light); }
+
+        .ev--error    { --ev-color: var(--err-main); }
+        .ev--error .ev-label { color: var(--err-main); }
+        .ev--error .ev-icon { color: var(--err-main); }
+        .ev--error { background: rgba(244, 63, 94, 0.04); }
+
+        .ev--warn     { --ev-color: var(--warn-main); }
+        .ev--warn .ev-label { color: var(--warn-main); }
+        .ev--warn .ev-icon { color: var(--warn-main); }
+        .ev--warn { background: rgba(251, 191, 36, 0.04); }
+
+        .ev--success  { --ev-color: var(--tool-light); }
+        .ev--success .ev-label { color: var(--tool-light); }
+        .ev--success .ev-icon { color: var(--tool-light); }
+
+        .ev--denied  { --ev-color: var(--err-main); }
+        .ev--denied .ev-label { color: var(--err-main); }
+        .ev--denied .ev-icon { color: var(--err-main); }
+
+        .ev--infra { --ev-color: var(--infra-main); border: 1px dashed rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.03); }
+        .ev--infra .ev-label { color: var(--infra-light); }
+        .ev--infra .ev-icon { color: var(--infra-light); }
+        .ev--infra::before { background: linear-gradient(90deg, transparent 0%, var(--infra-main) 40%, transparent 100%); box-shadow: 0 0 8px 0px var(--infra-main); }
+
+        /* Markdown dentro del sidebar */
+        .md-content h1,.md-content h2,.md-content h3 { color: var(--text-bright); margin: 14px 0 6px; font-weight: 500; font-size: 13px; }
+        .md-content h1 { font-size: 15px; }
+        .md-content code { background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 4px; font-family: 'Fira Code', monospace; font-size: 10px; color: var(--tool-light); }
+        .md-content pre { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.05); padding: 10px 12px; border-radius: 8px; margin-bottom: 10px; }
+        .md-content pre code { background: none; padding: 0; color: var(--text-main); font-size: 11px; }
+        .md-content p { margin-bottom: 8px; font-size: 13px; line-height: 1.65; }
+        .md-content ul { padding-left: 18px; margin-bottom: 10px; }
+        .md-content li { font-size: 12px; margin-bottom: 4px; line-height: 1.5; }
+
+        /* JSON highlight */
+        .content-block { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 14px; overflow-x: auto; }
+        .content-block pre { font-family: 'Fira Code', monospace; font-size: 10px; line-height: 1.6; color: var(--text-main); white-space: pre-wrap; word-break: break-all; }
+        .jk { color: var(--text-bright); } .js { color: var(--tool-light); } .jn { color: #FBBF24; } .jb { color: #F472B6; } .jnu { color: var(--text-muted); }
+
+        /* ── Thinking Indicator ── */
+        .thinking-float {
+            position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 290;
+            background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); backdrop-filter: blur(10px);
+            padding: 8px 20px; border-radius: 30px; display: flex; align-items: center; gap: 10px;
+            opacity: 0; pointer-events: none; transition: 0.3s; box-shadow: 0 0 20px var(--cog-glow);
+        }
+        .thinking-float.visible { opacity: 1; animation: softPulse 2s infinite; }
+        .t-text { font-family: 'Fira Code', monospace; font-size: 10px; color: var(--cog-light); letter-spacing: 1px; }
+        .wave { display: flex; gap: 4px; }
+        .w-dot { width: 4px; height: 10px; background: var(--cog-light); border-radius: 2px; animation: wave 1s infinite ease-in-out; }
+        .w-dot:nth-child(2) { animation-delay: 0.1s; } .w-dot:nth-child(3) { animation-delay: 0.2s; }
+        @keyframes wave { 0%, 100% { height: 4px; opacity:0.5 } 50% { height: 12px; opacity:1 } }
+        @keyframes softPulse { 0%, 100% { box-shadow: 0 0 10px rgba(139,92,246,0.1); } 50% { box-shadow: 0 0 30px rgba(139,92,246,0.4); } }
+
+        /* ── Human Gate ── */
+        .human-gate {
+            position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 400; width: 340px; display: none;
+            background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 24px; backdrop-filter: blur(20px); padding: 20px; text-align: center;
+        }
+        .hg-icon { font-size: 24px; margin-bottom: 8px; }
+        .hg-title { color: var(--warn-main); font-family: 'Fira Code', monospace; font-size: 11px; margin-bottom: 8px; }
+        .hg-reason { color: var(--text-bright); font-size: 13px; margin-bottom: 16px; }
+        .hg-actions { display: flex; gap: 8px; }
+        .btn-hg { flex: 1; padding: 10px; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 11px; }
+        .btn-approve { background: var(--tool-main); color: #000; } .btn-approve:hover { background: var(--tool-light); box-shadow: 0 0 15px var(--tool-glow); }
+        .btn-deny { background: rgba(244, 63, 94, 0.2); color: #fff; border: 1px solid var(--err-main); } .btn-deny:hover { background: var(--err-main); }
+
+        /* ── Toast Notifications ── */
+        .toast-container {
+            position: fixed; top: 90px; right: 24px; z-index: 600;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            background: rgba(20, 18, 30, 0.95);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px; padding: 12px 16px;
+            font-family: 'Fira Code', monospace; font-size: 11px;
+            color: var(--text-main);
+            backdrop-filter: blur(20px);
+            animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .toast.success { border-color: rgba(16,185,129,0.3); }
+        .toast.error { border-color: rgba(244,63,94,0.3); }
+        .toast.warn { border-color: rgba(251,191,36,0.3); }
+        .toast.info { border-color: rgba(139,92,246,0.3); }
+        .toast-icon { width: 16px; height: 16px; flex-shrink: 0; }
+        @keyframes toastIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes toastOut { from { opacity:1; } to { opacity:0; } }
+
+        /* Tooltip */
+        .tooltip { position: fixed; padding: 6px 12px; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 12px; font-family: 'Fira Code', monospace; font-size: 10px; color: var(--text-bright); pointer-events: none; z-index: 500; opacity: 0; transition: opacity 0.1s; }
+    </style>
+</head>
+<body>
+
+<div id="cur"></div><div id="cur-t"></div>
+<div class="ambient-blobs"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+<div class="noise-layer"></div>
+
+<!-- Top Dynamic Island -->
+<header class="top-island glass-panel">
+    <div class="logo">
+        <div class="logo-dot"></div>
+        <div class="logo-title">XULCAN <span>NEXUS</span></div>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status connecting">
+        <div class="status-dot"></div>
+        <span id="connectionText">CHECKING...</span>
+    </div>
+
+    <div class="stats-inline">
+        <div class="stat-item"><span class="stat-val" id="sN" style="color:var(--cog-light)">0</span><span class="stat-lbl">Nodes</span></div>
+        <div class="stat-item"><span class="stat-val" id="sE" style="color:var(--tool-light)">0</span><span class="stat-lbl">Edges</span></div>
+        <div class="stat-item"><span class="stat-val" id="sTokens" style="color:var(--warn-main)">0</span><span class="stat-lbl">Tokens</span></div>
+    </div>
+
+    <!-- Blueprint Selector with Reload -->
+    <div class="agent-select-wrap" title="Select Agent Blueprint">
+        <select id="blueprintSelect" class="agent-select">
+            <option value="">Loading...</option>
+        </select>
+        <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        <button class="btn-reload" id="btnReloadBp" onclick="reloadBlueprints()" title="Reload blueprints">
+            <svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <span>RELOAD</span>
+        </button>
+    </div>
+
+    <!-- Run Status Badge -->
+    <div id="runStatus" class="run-status awaiting">
+        <span id="runStatusText">AWAITING</span>
+    </div>
+
+    <div class="session-wrap">
+        <button class="session-btn" id="runBadge" onclick="toggleRunHistory()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <span id="runBadgeText">NO RUN</span>
+        </button>
+        <div class="session-menu glass-panel" id="runHistoryDd">
+            <div class="sm-header">
+                <span class="sm-title" id="rhdCount">0 Sessions</span>
+                <button class="btn-new" onclick="createNewSession(event)">+ NEW</button>
+            </div>
+            <div class="sess-list" id="rhdList">
+                <div style="font-size:11px; color:var(--text-muted); text-align:center; padding:20px 0;">No sessions active.</div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Legend -->
+<div class="legend-stack">
+    <div class="legend-pill"><div class="lp-dot" style="background:var(--sys-main); box-shadow:0 0 8px var(--sys-main)"></div> System</div>
+    <div class="legend-pill"><div class="lp-dot" style="background:var(--cog-main); box-shadow:0 0 8px var(--cog-main)"></div> Cognition</div>
+    <div class="legend-pill"><div class="lp-dot" style="background:var(--tool-main); box-shadow:0 0 8px var(--tool-main)"></div> Tool Exec</div>
+    <div class="legend-pill"><div class="lp-dot" style="background:var(--err-main); box-shadow:0 0 8px var(--err-main)"></div> Blocked</div>
+    <div class="legend-pill" style="border-style: dashed;"><div class="lp-dot" style="background:var(--infra-main); box-shadow:0 0 8px var(--infra-main)"></div> Infra</div>
+</div>
+
+<!-- RAM Panel -->
+<div class="ram-trigger" onclick="toggleRAM()"><div class="rt-dot"></div> STATE RAM</div>
+<div class="ram-panel glass-panel" id="ramPanel">
+    <div class="panel-header">
+        <div class="ph-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> Memory Store</div>
+        <button class="btn-close" onclick="toggleRAM()">X</button>
+    </div>
+    <div class="panel-body" id="ramBody">
+        <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:40px;">Memory is empty.</div>
+    </div>
+</div>
+
+<!-- Sidebar -->
+<div class="sidebar glass-panel" id="sidebar">
+    <div class="sb-header" id="sbHeader">
+        <div class="sb-header-row">
+            <div class="sb-header-left">
+                <div id="sbBadge" class="sb-badge"><span class="sb-badge-dot"></span><span id="sbBadgeText">EVENT</span></div>
+                <div id="sbTitle" class="sb-title"></div>
+                <div id="sbId" class="sb-id"></div>
+            </div>
+            <button class="btn-close" onclick="closeSb()">X</button>
+        </div>
+    </div>
+    <div class="meta-grid" id="metaGrid"></div>
+    <div class="sb-body" id="sbBody"></div>
+</div>
+
+<!-- Human Gate -->
+<div class="human-gate" id="humanGatePanel">
+    <div class="hg-icon">⚠️</div>
+    <div class="hg-title">HUMAN APPROVAL REQUIRED</div>
+    <div class="hg-reason" id="hgReason">Protected action requested.</div>
+    <div class="hg-actions">
+        <button class="btn-hg btn-approve" onclick="sendHumanDecision(true)">APPROVE</button>
+        <button class="btn-hg btn-deny" onclick="sendHumanDecision(false)">DENY</button>
+    </div>
+</div>
+
+<!-- Thinking Float -->
+<div class="thinking-float" id="thinkingBadge">
+    <div class="wave"><div class="w-dot"></div><div class="w-dot"></div><div class="w-dot"></div></div>
+    <div class="t-text">SYNTHESIZING...</div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Command Dock -->
+<div class="command-dock glass-panel">
+    <div class="dock-slider-wrap">
+        <input type="range" class="dock-slider" id="timeSlider" min="0" max="0" value="0" oninput="onTimeTravel(this.value)"/>
+    </div>
+    <div class="dock-controls">
+        <div class="media-group">
+            <button class="btn-icon" onclick="stepTravel('start')" title="Restart">
+                <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+            </button>
+            <button class="btn-icon" onclick="stepTravel(-1)" title="Prev">
+                <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+            </button>
+            <button class="btn-play" id="playBtn" onclick="togglePlay()">
+                <svg id="playIcon" style="fill:#fff; width:20px; height:20px;" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="btn-icon" onclick="stepTravel(1)" title="Next">
+                <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
+            <div class="dock-counter"><span id="ttCurrent">0</span> / <span id="ttTotal">0</span></div>
+        </div>
+        <div class="prompt-box">
+            <input type="text" id="promptInput" placeholder="Initialize cognitive process..." autocomplete="off"/>
+            <button class="btn-send" id="sendBtn" onclick="submitPrompt()">
+                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+        </div>
+        <div class="settings-group">
+            <button class="btn-speed active" onclick="setSpeed(1, this)">1x</button>
+            <button class="btn-speed" onclick="setSpeed(2.5, this)">2.5x</button>
+            <button class="btn-speed" onclick="setSpeed(10, this)">10x</button>
+            <button class="btn-view" id="viewModeBtn" onclick="toggleViewMode()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                Compact
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="graph"></div>
+<div class="tooltip" id="tip"></div>
+
+<script>
+// ── SVG Icons ──
+const ICONS = {
+    model:   `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>`,
+    fallback: `<svg viewBox="0 0 24 24"><path d="M17 17h-11l4 4-1.41 1.41-6.41-6.41 6.41-6.41 1.41 1.41-4 4h11c1.65 0 3-1.35 3-3v-4h2v4c0 2.76-2.24 5-5 5zm-10-10h11l-4-4 1.41-1.41 6.41 6.41-6.41 6.41-1.41-1.41 4-4h-11c-1.65 0-3 1.35-3 3v4h-2v-4c0-2.76 2.24-5 5-5z"/></svg>`,
+    tool:    `<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>`,
+    toolOut: `<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.07-.44.18-.88.18-1.33C18 2.99 16.54 2 14.86 2c-.92 0-1.76.38-2.45 1.07L12 3.49l-.41-.42C10.9 2.38 10.06 2 9.14 2 7.46 2 6 2.99 6 4.67c0 .45.11.89.18 1.33H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5.14-2.67c.31-.31.69-.33.86-.33.35 0 1.28.2 1.28 1 0 .64-.6 1.26-1.33 1.95L15 6.6C14.62 6.28 14 5.66 14 5c0-.34.17-.35.86-.67zM4 8h16v3h-1v-1h-2v1H7v-1H5v1H4V8zm0 12V13h5v7H4zm7 0v-7h2v7h-2zm4 0v-7h5v7h-5z"/></svg>`,
+    policy:  `<svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>`,
+    human:   `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`,
+    check:   `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`,
+    denied:  `<svg viewBox="0 0 24 24"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>`,
+    init:    `<svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>`,
+    complete:`<svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>`,
+    info:    `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>`,
+};
+
+// ── Core Configuration — API_URL configurable ──
+const API_URL = window.XULCAN_API_URL || "http://localhost:8000";
+
+// ── Run Status Management ──
+let currentRunStatus = 'awaiting';
+
+function setRunStatus(status, text) {
+    currentRunStatus = status;
+    const badge = document.getElementById('runStatus');
+    const badgeText = document.getElementById('runStatusText');
+    badge.className = 'run-status ' + status;
+
+    switch(status) {
+        case 'awaiting':
+            badgeText.textContent = text || 'AWAITING';
+            break;
+        case 'running':
+            badge.innerHTML = '<div class="spinner"></div><span>' + (text || 'PROCESSING') + '</span>';
+            break;
+        case 'completed':
+            badgeText.textContent = text || 'COMPLETED';
+            break;
+        case 'error':
+            badgeText.textContent = text || 'ERROR';
+            break;
+    }
+}
+
+// ── Connection Status Management ──
+let connectionState = 'connecting';
+let healthCheckInterval = null;
+
+function setConnectionStatus(status, text) {
+    connectionState = status;
+    const badge = document.getElementById('connectionStatus');
+    const badgeText = document.getElementById('connectionText');
+    badge.className = 'connection-status ' + status;
+    badgeText.textContent = text || status.toUpperCase();
+}
+
+async function checkHealth() {
+    setConnectionStatus('connecting', 'CHECKING...');
+
+    try {
+        // Check liveness
+        const liveRes = await fetch(`${API_URL}/health/live`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+        if (!liveRes.ok) throw new Error('Liveness check failed');
+
+        // Check readiness
+        const readyRes = await fetch(`${API_URL}/health/ready`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+        const readyData = await readyRes.json();
+
+        if (readyData.status === 'ready') {
+            setConnectionStatus('online', 'ONLINE');
+            document.querySelector('.logo-dot').style.background = 'var(--tool-main)';
+            document.querySelector('.logo-dot').style.boxShadow = '0 0 10px var(--tool-main)';
+        } else {
+            setConnectionStatus('offline', 'INITIALIZING');
+            document.querySelector('.logo-dot').style.background = 'var(--warn-main)';
+            document.querySelector('.logo-dot').style.boxShadow = '0 0 10px var(--warn-main)';
+        }
+
+        // Load blueprints if online
+        await loadBlueprints();
+
+    } catch (err) {
+        setConnectionStatus('offline', 'OFFLINE');
+        document.querySelector('.logo-dot').style.background = 'var(--err-main)';
+        document.querySelector('.logo-dot').style.boxShadow = '0 0 10px var(--err-main)';
+        console.warn('API offline:', err.message);
+    }
+}
+
+function startHealthCheck() {
+    checkHealth();
+    // Check every 10 seconds
+    if (healthCheckInterval) clearInterval(healthCheckInterval);
+    healthCheckInterval = setInterval(checkHealth, 10000);
+}
+
+// ── Toast Notifications ──
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+
+    const iconSvg = type === 'success' ? ICONS.check :
+                    type === 'error' ? ICONS.denied :
+                    type === 'warn' ? ICONS.human : ICONS.info;
+
+    toast.innerHTML = `
+        <div class="toast-icon" style="color: var(--${type === 'info' ? 'cog' : type}-main)">${iconSvg}</div>
+        <span>${message}</span>
+    `;
+
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), duration);
+}
+
+// ── Session Architecture ──
+let sessions = {};
+
+function saveSessions() {
+    const cleanSessions = {};
+    for (const [key, session] of Object.entries(sessions)) {
+        cleanSessions[key] = {
+            id: session.id, totalTokens: session.totalTokens, createdAt: session.createdAt, ram: session.ram,
+            runIds: Array.from(session.runIds),
+            nodes: session.nodes.map(n => ({ id: n.id, run_id: n.run_id, name: n.name, color: n.color, category: n.category, details: n.details, _ts: n._ts || 0 })),
+            links: session.links.map(l => ({ source: typeof l.source === 'object' ? l.source.id : l.source, target: typeof l.target === 'object' ? l.target.id : l.target }))
+        };
+    }
+    localStorage.setItem('xulcan_sessions_data', JSON.stringify(cleanSessions));
+}
+
+function loadSessions() {
+    const data = localStorage.getItem('xulcan_sessions_data');
+    if (data) {
+        const parsed = JSON.parse(data);
+        for (const [key, session] of Object.entries(parsed)) {
+            session.runIds = new Set(session.runIds);
+            sessions[key] = session;
+        }
+    }
+}
+
+loadSessions();
+let CURRENT_SESSION_KEY = localStorage.getItem('xulcan_session');
+if (!CURRENT_SESSION_KEY || !sessions[CURRENT_SESSION_KEY]) {
+    CURRENT_SESSION_KEY = 'sess_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('xulcan_session', CURRENT_SESSION_KEY);
+}
+
+function initSession(key) {
+    if (!sessions[key]) {
+        sessions[key] = { id: key, nodes: [], links: [], ram: {}, totalTokens: 0, runIds: new Set(), createdAt: new Date().toLocaleTimeString() };
+        saveSessions();
+    }
+    return sessions[key];
+}
+initSession(CURRENT_SESSION_KEY);
+function getActiveSession() { return sessions[CURRENT_SESSION_KEY]; }
+
+// ── Cursor Dinámico ──
+const cur = document.getElementById('cur'), curT = document.getElementById('cur-t');
+document.addEventListener('mousemove', e => {
+    cur.style.left = e.clientX + 'px'; cur.style.top = e.clientY + 'px';
+    curT.style.left = e.clientX + 'px'; curT.style.top = e.clientY + 'px';
+});
+
+// ── Global State ──
+let timeIndex = 0, activeEvtSource = null, rawVisible = false, pendingHumanRunId = null;
+
+const EVENT_STYLES = {
+    "run_created":                 { name: "Init",          color: "#6366f1", category: "internal" },
+    "step_started":                { name: "Step",          color: "#64748b", category: "internal" },
+    "model_request":               { name: "Cognition Req", color: "#C4B5FD", category: "model" },
+    "model_response":              { name: "Cognition Res", color: "#8B5CF6", category: "model" },
+    "model_fallback":              { name: "Model Fallback", color: "#FBBF24", category: "warn" },
+    "tool_execution":              { name: "Tool Exec",     color: "#6EE7B7", category: "tool" },
+    "tool_output":                 { name: "Tool Out",      color: "#10B981", category: "tool" },
+    "policy_violation":            { name: "Policy Block",  color: "#F43F5E", category: "error" },
+    "human_intervention_required": { name: "Human Auth",    color: "#FBBF24", category: "human" },
+    "human_intervention_result":   { name: "Auth Resolved", color: "#FBBF24", category: "human" },
+    "run_completed":               { name: "Complete",      color: "#9333EA", category: "completed" },
+    "run_failed":                  { name: "Failed",        color: "#E11D48", category: "error" },
+    "state_written":               { name: "State Write",   color: "#F59E0B", category: "infra" },
+    "vault_accessed":              { name: "Vault Access",  color: "#F59E0B", category: "infra" },
+    "fallback_fired":              { name: "Fallback",      color: "#F59E0B", category: "infra" },
+    "budget_notified":             { name: "Budget Alert",  color: "#F59E0B", category: "infra" },
+    "tool_governance_applied":     { name: "Governance",    color: "#F59E0B", category: "infra" },
+};
+
+// ── Force Graph ──
+const tip = document.getElementById('tip');
+let newestId = null;
+
+const Graph = ForceGraph()(document.getElementById('graph'))
+    .graphData({ nodes: [], links: [] })
+    .nodeRelSize(12).nodeId('id').nodeLabel('').nodeColor('color')
+    .nodeCanvasObjectMode(() => 'replace')
+    .nodeCanvasObject((node, ctx, gs) => {
+        if (!isFinite(node.x) || !isFinite(node.y)) return;
+        const r = 10, t = Date.now() / 1000;
+        const isTool = node.category === 'tool';
+        const isModel = node.category === 'model';
+        const isInfra = node.category === 'infra';
+        const isNew = node.id === newestId;
+        const baseColor = isTool ? '#10B981' : isModel ? '#8B5CF6' : isInfra ? '#F59E0B' : node.color;
+        const aura = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, r * 3);
+        aura.addColorStop(0, baseColor + (isNew ? '40' : '15'));
+        aura.addColorStop(1, 'transparent');
+        ctx.beginPath(); ctx.arc(node.x, node.y, r * 3, 0, Math.PI * 2);
+        ctx.fillStyle = aura; ctx.fill();
+        const ringPulse = isNew ? Math.sin(t * 4) * 2 : 0;
+        ctx.beginPath(); ctx.arc(node.x, node.y, r + ringPulse, 0, Math.PI * 2);
+        if (isInfra) {
+            ctx.setLineDash([3, 3]);
+        } else {
+            ctx.setLineDash([]);
+        }
+        ctx.strokeStyle = baseColor + 'cc';
+        ctx.lineWidth = isNew ? 2.5 : 1.5; ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(node.x, node.y, r * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff'; ctx.fill();
+        const fs = Math.max(6, 10 / gs);
+        ctx.font = `500 ${fs}px Outfit,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.8)';
+        ctx.fillText(node.name, node.x, node.y + r + 4);
+    })
+    .linkColor(l => {
+        const session = getActiveSession();
+        const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+        const src = session.nodes.find(n => n.id === srcId);
+        if (src && src.category === 'infra') return 'rgba(245,158,11,0.2)';
+        return (src && src.category === 'tool') ? 'rgba(16,185,129,0.2)' : 'rgba(139,92,246,0.2)';
+    })
+    .linkWidth(1.5)
+    .linkDirectionalParticles(2).linkDirectionalParticleSpeed(0.005).linkDirectionalParticleWidth(3)
+    .linkDirectionalParticleColor(l => {
+        const session = getActiveSession();
+        const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+        const src = session.nodes.find(n => n.id === srcId);
+        if (src && src.category === 'infra') return '#FDE68A';
+        return (src && src.category === 'tool') ? '#6EE7B7' : '#C4B5FD';
+    })
+    .onNodeHover(n => { tip.style.opacity = n ? '1' : '0'; if (n) tip.textContent = n.name; })
+    .onNodeClick(n => showSb(n))
+    .onBackgroundClick(() => closeSb())
+    .backgroundColor('transparent')
+    .width(window.innerWidth).height(window.innerHeight)
+    .d3Force('charge', d3.forceManyBody().strength(-600))
+    .d3Force('link', d3.forceLink().id(d => d.id).distance(120));
+
+window.addEventListener('resize', () => { Graph.width(window.innerWidth).height(window.innerHeight); });
+document.addEventListener('mousemove', e => {
+    if (parseFloat(tip.style.opacity) > 0) { tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY - 8) + 'px'; }
+});
+
+// ── View Mode ──
+let compactMode = true;
+function toggleViewMode() {
+    compactMode = !compactMode;
+    const btn = document.getElementById('viewModeBtn');
+    btn.innerHTML = compactMode
+        ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg> Compact'
+        : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/><line x1="15" y1="21" x2="15" y2="9"/></svg> Detailed';
+    btn.style.color = compactMode ? 'var(--text-muted)' : 'var(--text-bright)';
+    rebuildGraph();
+}
+
+function rebuildGraph() {
+    const session = getActiveSession();
+    let visibleNodes = session.nodes.slice(0, timeIndex);
+    let visibleLinks = [];
+    if (compactMode) {
+        const keyEvents = ['run_created', 'model_response', 'tool_execution', 'policy_violation', 'human_intervention_required', 'run_completed', 'run_failed', 'fallback_fired', 'budget_notified', 'tool_governance_applied', 'vault_accessed', 'state_written'];
+        visibleNodes = visibleNodes.filter(n => keyEvents.includes((n.details.type || '').toLowerCase()));
+        for (let i = 1; i < visibleNodes.length; i++) visibleLinks.push({ source: visibleNodes[i - 1].id, target: visibleNodes[i].id });
+    } else {
+        const visibleIds = new Set(visibleNodes.map(n => n.id));
+        visibleLinks = session.links.filter(l => visibleIds.has(typeof l.source === 'object' ? l.source.id : l.source) && visibleIds.has(typeof l.target === 'object' ? l.target.id : l.target));
+    }
+    Graph.graphData({ nodes: visibleNodes, links: visibleLinks });
+    document.getElementById('sN').textContent = visibleNodes.length;
+    document.getElementById('sE').textContent = visibleLinks.length;
+    document.getElementById('sTokens').textContent = session.totalTokens.toLocaleString();
+    updateRAM(session.ram);
+}
+
+// ── Media Player ──
+let isPlaying = false, playInterval = null, playSpeed = 1;
+function togglePlay() { isPlaying ? pausePlayback() : startPlayback(); }
+function startPlayback() {
+    const session = getActiveSession();
+    if (timeIndex >= session.nodes.length) timeIndex = 0;
+    isPlaying = true;
+    document.getElementById('playIcon').innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+    playInterval = setInterval(() => {
+        if (timeIndex < getActiveSession().nodes.length) onTimeTravel(timeIndex + 1);
+        else pausePlayback();
+    }, 800 / playSpeed);
+}
+function pausePlayback() {
+    isPlaying = false; clearInterval(playInterval);
+    document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+}
+function setSpeed(speed, btnElement) {
+    playSpeed = speed;
+    document.querySelectorAll('.btn-speed').forEach(b => b.classList.remove('active'));
+    btnElement.classList.add('active');
+    if (isPlaying) { pausePlayback(); startPlayback(); }
+}
+function stepTravel(dir) {
+    pausePlayback();
+    const session = getActiveSession();
+    if (dir === 'start') { onTimeTravel(0); return; }
+    let newIdx = Math.max(0, Math.min(timeIndex + dir, session.nodes.length));
+    onTimeTravel(newIdx);
+}
+function syncSlider(forceTip = false) {
+    const session = getActiveSession();
+    const sl = document.getElementById('timeSlider');
+    const maxNodes = session.nodes.length;
+    sl.max = maxNodes;
+    if (forceTip || (!isPlaying && timeIndex >= maxNodes - 1)) timeIndex = maxNodes;
+    sl.value = timeIndex;
+    document.getElementById('ttCurrent').textContent = timeIndex;
+    document.getElementById('ttTotal').textContent = maxNodes;
+}
+function onTimeTravel(val) {
+    timeIndex = parseInt(val);
+    document.getElementById('timeSlider').value = timeIndex;
+    document.getElementById('ttCurrent').textContent = timeIndex;
+    rebuildGraph();
+    if (timeIndex > 0) {
+        const currentData = Graph.graphData();
+        const lastVisible = currentData.nodes[timeIndex - 1];
+        if (lastVisible && isFinite(lastVisible.x)) Graph.centerAt(lastVisible.x, lastVisible.y, 600);
+    }
+}
+
+// ── Sessions / History ──
+function toggleRunHistory() { document.getElementById('runHistoryDd').classList.toggle('open'); }
+function createNewSession(e) {
+    if (e) e.stopPropagation();
+    const key = 'sess_' + Math.random().toString(36).substr(2, 9);
+    switchSession(key);
+}
+function renderHistory() {
+    const list = document.getElementById('rhdList');
+    const count = document.getElementById('rhdCount');
+    const sessionKeys = Object.keys(sessions);
+    count.textContent = `${sessionKeys.length} Sessions`;
+    if (!sessionKeys.length) { list.innerHTML = '<div style="font-size:11px; color:var(--text-muted); text-align:center;">No sessions.</div>'; return; }
+    list.innerHTML = sessionKeys.reverse().map(key => {
+        const s = sessions[key];
+        const isActive = key === CURRENT_SESSION_KEY;
+        const bgStyle = isActive ? 'background:rgba(255,255,255,0.08); border-color:var(--glass-border);' : '';
+        return `
+        <div class="sess-item" style="${bgStyle}" onclick="switchSession('${key}')">
+            <div class="sess-item-top">
+                <div class="sess-id">${key} ${isActive ? '<span style="color:var(--tool-main)">•</span>' : ''}</div>
+                <button class="sess-del" onclick="deleteSession('${key}', event)">X</button>
+            </div>
+            <div class="sess-meta"><span>${s.nodes.length} nodes</span><span style="color:var(--warn-main)">${s.totalTokens} tks</span></div>
+        </div>`;
+    }).join('');
+}
+function deleteSession(key, event) {
+    event.stopPropagation();
+    if (!confirm(`Delete session ${key}?`)) return;
+    delete sessions[key]; saveSessions();
+    if (key === CURRENT_SESSION_KEY) createNewSession(); else renderHistory();
+}
+function switchSession(key) {
+    if (activeEvtSource) activeEvtSource.close();
+    CURRENT_SESSION_KEY = key; localStorage.setItem('xulcan_session', key);
+    initSession(key);
+    document.getElementById('runHistoryDd').classList.remove('open');
+    syncSlider(); rebuildGraph(); renderHistory();
+    setRunStatus('awaiting', 'NO RUN');
+}
+
+// ── RAM Inspector ──
+function toggleRAM() { document.getElementById('ramPanel').classList.toggle('open'); }
+function updateRAM(obj) {
+    const body = document.getElementById('ramBody');
+    if (!obj || Object.keys(obj).length === 0) {
+        body.innerHTML = '<div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:40px;">Memory is empty.</div>';
+        return;
+    }
+    body.innerHTML = Object.entries(obj).map(([k, v]) => {
+        const display = typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
+        return `<div class="ram-kv"><div class="ram-k">${k}</div><div class="ram-v">${esc(display)}</div></div>`;
+    }).join('');
+}
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// ── API & Firehose ──
+document.getElementById('promptInput').addEventListener('keypress', e => { if (e.key === 'Enter') submitPrompt(); });
+
+async function submitPrompt() {
+    const input = document.getElementById('promptInput'), btn = document.getElementById('sendBtn');
+    const blueprintSelect = document.getElementById('blueprintSelect');
+
+    const text = input.value.trim();
+    const bpId = blueprintSelect.value;
+
+    if (!text || !bpId) {
+        showToast('Please enter a prompt and select an agent.', 'warn');
+        return;
+    }
+
+    if (connectionState !== 'online') {
+        showToast('API is offline. Cannot submit prompt.', 'error');
+        return;
+    }
+
+    input.value = ''; input.disabled = true; btn.disabled = true; blueprintSelect.disabled = true;
+    initSession(CURRENT_SESSION_KEY); renderHistory();
+    setRunStatus('running', 'INITIALIZING...');
+    document.getElementById('runBadgeText').textContent = 'PROCESSING...';
+
+    try {
+        const res = await fetch(`${API_URL}/v1/agent/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                blueprint_id: bpId,
+                agent_id: CURRENT_SESSION_KEY,
+                input_text: text,
+                session_key: CURRENT_SESSION_KEY
+            })
+        });
+        const data = await res.json();
+        if (data.run_id) {
+            startFirehose(data.run_id);
+            showToast(`Run ${data.run_id.slice(0, 8)} started`, 'info');
+        }
+        else throw new Error(data.detail || 'Unknown error');
+    } catch (err) {
+        setRunStatus('error', 'FAILED');
+        document.getElementById('runBadgeText').textContent = 'ERROR';
+        showToast(`API Error: ${err.message}`, 'error');
+    } finally {
+        input.disabled = false; btn.disabled = false; blueprintSelect.disabled = false; input.focus();
+    }
+}
+
+function startFirehose(runId) {
+    const session = getActiveSession();
+    session.runIds.add(runId); saveSessions();
+    document.getElementById('runBadgeText').textContent = runId.slice(0, 8) + '...';
+    if (activeEvtSource) activeEvtSource.close();
+    activeEvtSource = new EventSource(`${API_URL}/v1/runs/${runId}/stream`);
+
+    activeEvtSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        const type = (data.type || '').toLowerCase();
+
+        if (type === 'model_request') {
+            document.getElementById('thinkingBadge').classList.add('visible');
+            setRunStatus('running', 'THINKING...');
+        }
+        else if (type === 'tool_execution') {
+            setRunStatus('running', 'EXECUTING...');
+        }
+        else if (['model_response', 'run_completed', 'run_failed'].includes(type)) {
+            document.getElementById('thinkingBadge').classList.remove('visible');
+        }
+
+        if (type === 'human_intervention_required') {
+            pendingHumanRunId = runId;
+            setRunStatus('running', 'AWAITING APPROVAL');
+            document.getElementById('hgReason').textContent = data.details?.reason || 'Protected action requested.';
+            document.getElementById('humanGatePanel').style.display = 'block';
+            showToast('Human approval required', 'warn');
+        } else if (type === 'human_intervention_result') {
+            document.getElementById('humanGatePanel').style.display = 'none';
+            pendingHumanRunId = null;
+        }
+
+        if (type === 'ram_update' || data.state) {
+            const stateToMerge = data.state || data;
+            delete stateToMerge.type; delete stateToMerge.id;
+            session.ram = { ...session.ram, ...stateToMerge };
+            updateRAM(session.ram); saveSessions();
+            if (type === 'ram_update') return;
+        }
+
+        if (session.nodes.find(n => n.id === data.id)) return;
+        const style = EVENT_STYLES[type] || { name: type, color: '#9ca3af', category: 'internal' };
+        const node = { id: data.id, run_id: runId, name: style.name, color: style.color, category: style.category, details: data };
+
+        const evTimestamp = data.timestamp ? new Date(data.timestamp).getTime() : Date.now();
+        node._ts = evTimestamp;
+
+        let insertPos = session.nodes.length;
+        for (let i = session.nodes.length - 1; i >= 0; i--) {
+            if ((session.nodes[i]._ts || 0) <= evTimestamp) {
+                insertPos = i + 1;
+                break;
+            }
+            if (i === 0) insertPos = 0;
+        }
+        session.nodes.splice(insertPos, 0, node);
+
+        session.links = [];
+        for (let i = 1; i < session.nodes.length; i++) {
+            session.links.push({ source: session.nodes[i - 1].id, target: session.nodes[i].id });
+        }
+
+        if (type === 'model_response' && data.details?.usage?.total_tokens) {
+            session.totalTokens += parseInt(data.details.usage.total_tokens) || 0;
+        }
+
+        saveSessions(); syncSlider(); rebuildGraph(); newestId = data.id;
+
+        setTimeout(() => {
+            if (timeIndex === session.nodes.length && session.nodes.length > 0) {
+                const cData = Graph.graphData();
+                const last = cData.nodes[cData.nodes.length - 1];
+                if (last && isFinite(last.x)) Graph.centerAt(last.x, last.y, 600);
+            }
+        }, 350);
+
+        if (type === 'run_completed') {
+            activeEvtSource.close();
+            setRunStatus('completed', 'DONE');
+            document.getElementById('runBadgeText').textContent = 'COMPLETED';
+            showToast('Run completed successfully', 'success');
+            renderHistory();
+        } else if (type === 'run_failed') {
+            activeEvtSource.close();
+            setRunStatus('error', 'FAILED');
+            document.getElementById('runBadgeText').textContent = 'FAILED';
+            showToast(`Run failed: ${data.details?.error_message || 'Unknown error'}`, 'error');
+            renderHistory();
+        }
+    };
+
+    activeEvtSource.onerror = function () {
+        // Don't close immediately - try to reconnect
+        showToast('Connection lost. Attempting to reconnect...', 'warn');
+
+        // Close and set error state if no reconnection within 5 seconds
+        setTimeout(() => {
+            if (activeEvtSource.readyState === EventSource.CLOSED || activeEvtSource.readyState === undefined) {
+                activeEvtSource.close();
+                document.getElementById('thinkingBadge').classList.remove('visible');
+                if (currentRunStatus === 'running') {
+                    setRunStatus('error', 'DISCONNECTED');
+                    showToast('Connection lost. Please try again.', 'error');
+                }
+            }
+        }, 5000);
+    };
+}
+
+// ── Human Gate ──
+async function sendHumanDecision(isApproved) {
+    if (!pendingHumanRunId) return;
+    document.getElementById('humanGatePanel').style.display = 'none';
+    try {
+        await fetch(`${API_URL}/v1/runs/${pendingHumanRunId}/human-response`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approved: isApproved, feedback: isApproved ? "Proceed." : "Action denied." })
+        });
+        showToast(isApproved ? 'Action approved' : 'Action denied', isApproved ? 'success' : 'info');
+        setRunStatus('running', 'CONTINUING...');
+    } catch (err) {
+        showToast(`API Error: ${err.message}`, 'error');
+    }
+}
+
+// ── Blueprints Management ──
+async function loadBlueprints() {
+    try {
+        const res = await fetch(`${API_URL}/v1/blueprints`);
+        const blueprints = await res.json();
+        const select = document.getElementById('blueprintSelect');
+
+        if (blueprints.length === 0) {
+            select.innerHTML = '<option value="">No agents found</option>';
+            showToast('No blueprints loaded', 'warn');
+            return;
+        }
+
+        // Preserve current selection
+        const currentVal = select.value;
+        select.innerHTML = blueprints.map(bp =>
+            `<option value="${bp.id}">${bp.name} (${bp.provider})</option>`
+        ).join('');
+
+        // Restore selection if exists
+        if (currentVal && blueprints.find(bp => bp.id === currentVal)) {
+            select.value = currentVal;
+        }
+
+    } catch (e) {
+        console.error("Failed to load blueprints:", e);
+        document.getElementById('blueprintSelect').innerHTML = '<option value="">Offline</option>';
+    }
+}
+
+async function reloadBlueprints() {
+    const btn = document.getElementById('btnReloadBp');
+    btn.classList.add('loading');
+
+    try {
+        const res = await fetch(`${API_URL}/v1/blueprints/reload`, { method: 'POST' });
+        const data = await res.json();
+
+        await loadBlueprints();
+        showToast(`Reloaded ${data.loaded || 0} blueprints`, 'success');
+
+    } catch (e) {
+        showToast('Failed to reload blueprints', 'error');
+    } finally {
+        btn.classList.remove('loading');
+    }
+}
+
+// ── JSON Highlight ──
+function jsh(obj) {
+    return JSON.stringify(obj, null, 2)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+            let c = 'jn';
+            if (/^"/.test(m)) c = /:$/.test(m) ? 'jk' : 'js';
+            else if (/true|false/.test(m)) c = 'jb';
+            else if (/null/.test(m)) c = 'jnu';
+            return `<span class="${c}">${m}</span>`;
+        });
+}
+
+// ── Sidebar Helpers ──
+function buildEvBlock(variant, iconSvg, label, sublabel, bodyHtml) {
+    return `
+    <div class="ev-block ev--${variant}">
+        <div class="ev-head">
+            <div class="ev-icon">${iconSvg}</div>
+            <div>
+                <div class="ev-label">${label}</div>
+                ${sublabel ? `<div class="ev-sublabel">${sublabel}</div>` : ''}
+            </div>
+        </div>
+        <div class="ev-body">${bodyHtml}</div>
+    </div>`;
+}
+
+function buildChips(pairs) {
+    if (!pairs.length) return '';
+    return `<div class="ev-chips">${pairs.map(([l, v]) => `<div class="ev-chip"><strong>${l}</strong> ${esc(String(v))}</div>`).join('')}</div>`;
+}
+
+function setSbAccent(color) {
+    const sidebar = document.getElementById('sidebar');
+    const hex = color;
+    sidebar.style.setProperty('--sb-accent', hex);
+    sidebar.style.setProperty('--sb-accent-muted', hex + '40');
+    sidebar.style.setProperty('--sb-accent-bg', hex + '12');
+}
+
+function showSb(node) {
+    rawVisible = false;
+    const type = (node.details.type || '').toLowerCase();
+    const style = EVENT_STYLES[type] || { name: type, color: '#9ca3af', category: 'internal' };
+
+    setSbAccent(style.color);
+
+    document.getElementById('sbBadgeText').textContent = node.details.type || type;
+    document.getElementById('sbTitle').textContent = node.name;
+    document.getElementById('sbId').textContent = node.id;
+
+    const mg = document.getElementById('metaGrid');
+    mg.innerHTML = '';
+    const metaFields = Object.entries(node.details)
+        .filter(([k, v]) => typeof v !== 'object' && k !== 'id' && k !== 'type')
+        .slice(0, 4);
+    metaFields.forEach(([k, v]) => {
+        mg.innerHTML += `<div class="meta-card"><div class="mc-l">${k.replace(/_/g, ' ')}</div><div class="mc-v">${esc(String(v))}</div></div>`;
+    });
+
+    const sbBody = document.getElementById('sbBody');
+    sbBody.innerHTML = '';
+
+    let mainBlock = null;
+
+    if (type === 'model_response' && node.details.message?.content) {
+        const usage = node.details.usage || {};
+        const chips = buildChips([
+            ...(usage.prompt_tokens ? [['prompt', usage.prompt_tokens]] : []),
+            ...(usage.completion_tokens ? [['completion', usage.completion_tokens]] : []),
+            ...(usage.total_tokens ? [['total', usage.total_tokens]] : []),
+            ...(node.details.model ? [['model', node.details.model]] : []),
+        ]);
+        mainBlock = buildEvBlock(
+            'model', ICONS.model, 'Cognitive Response', 'LLM output',
+            `<div class="md-content" style="font-size:12px; line-height:1.65;">${marked.parse(node.details.message.content)}</div>${chips}`
+        );
+    }
+    else if (type === 'run_completed' && node.details.final_response?.content) {
+        mainBlock = buildEvBlock(
+            'model', ICONS.complete, 'Run Completed', 'Final agent output',
+            `<div class="md-content" style="font-size:12px; line-height:1.65;">${marked.parse(node.details.final_response.content)}</div>`
+        );
+    }
+    else if (type === 'model_request') {
+        const msgs = node.details.messages || [];
+        const lastMsg = msgs[msgs.length - 1];
+        const content = lastMsg?.content || JSON.stringify(node.details, null, 2);
+        const chips = buildChips([
+            ...(node.details.model ? [['model', node.details.model]] : []),
+            ...(msgs.length ? [['messages', msgs.length]] : []),
+        ]);
+        mainBlock = buildEvBlock(
+            'model', ICONS.model, 'Cognition Request', 'Outgoing to LLM',
+            `<pre class="ev-code">${esc(typeof content === 'string' ? content : JSON.stringify(content, null, 2))}</pre>${chips}`
+        );
+    }
+    else if (type === 'tool_execution') {
+        const tName = node.details.tool_name || node.details.name || '—';
+        const tArgs = node.details.tool_arguments || node.details.arguments || node.details.args || {};
+        const argsStr = typeof tArgs === 'string' ? tArgs : JSON.stringify(tArgs, null, 2);
+        const chips = buildChips([
+            ['tool', tName],
+            ...(node.details.step !== undefined ? [['step', node.details.step]] : []),
+        ]);
+        mainBlock = buildEvBlock(
+            'tool', ICONS.tool, 'Tool Execution', tName,
+            `<pre class="ev-code">${esc(argsStr)}</pre>${chips}`
+        );
+    }
+    else if (type === 'tool_output') {
+        const tOut = node.details.output || node.details.result || '';
+        const outStr = typeof tOut === 'string' ? tOut : JSON.stringify(tOut, null, 2);
+        const ok = node.details.success !== false;
+        const chips = buildChips([
+            ['status', ok ? 'OK' : 'ERROR'],
+            ...(typeof tOut === 'string' ? [['length', tOut.length + ' chars']] : []),
+        ]);
+        mainBlock = buildEvBlock(
+            'tool-out', ICONS.toolOut, 'Tool Output', ok ? 'Execution succeeded' : 'Execution failed',
+            `<pre class="ev-code">${esc(outStr) || '<span style="color:var(--text-muted)">empty</span>'}</pre>${chips}`
+        );
+    }
+    else if (type === 'policy_violation') {
+        const reason = node.details.reason || node.details.details || 'Action blocked by sentinel.';
+        mainBlock = buildEvBlock(
+            'error', ICONS.policy, 'Policy Violation', 'Sentinel blocked action',
+            `<p class="ev-prose">${esc(reason)}</p>`
+        );
+    }
+    else if (type === 'human_intervention_required') {
+        mainBlock = buildEvBlock(
+            'warn', ICONS.human, 'Awaiting Human', 'Execution paused',
+            `<p class="ev-prose">${esc(node.details.reason || 'Execution paused — human confirmation required.')}</p>`
+        );
+    }
+    else if (type === 'human_intervention_result') {
+        const approved = node.details.approved === true || String(node.details.approved).toLowerCase() === 'true';
+        mainBlock = buildEvBlock(
+            approved ? 'success' : 'denied',
+            approved ? ICONS.check : ICONS.denied,
+            approved ? 'Action Approved' : 'Action Denied',
+            'Human decision recorded',
+            `<p class="ev-prose">${esc(node.details.feedback || (approved ? 'Approved by operator.' : 'Denied by operator.'))}</p>
+             ${buildChips([['decision', approved ? 'APPROVED' : 'DENIED']])}`
+        );
+    }
+    else if (type === 'run_created') {
+        mainBlock = buildEvBlock(
+            'model', ICONS.init, 'Run Initialized', 'Agent execution started',
+            buildChips([
+                ...(node.details.run_id ? [['run_id', node.details.run_id.slice(0, 12) + '...']] : []),
+            ])
+        );
+    }
+    else if (type === 'run_failed') {
+        mainBlock = buildEvBlock(
+            'error', ICONS.denied, 'Run Failed', 'Execution terminated',
+            `<p class="ev-prose">${esc(node.details.error || node.details.reason || 'Execution terminated with error.')}</p>`
+        );
+    }
+    else if (type === 'model_fallback') {
+        mainBlock = buildEvBlock(
+            'warn', ICONS.fallback, 'LLM Fallback Triggered', 'Automatic failover',
+            `<p class="ev-prose">${esc(node.details.reason || 'Primary model failed.')}</p>
+             ${buildChips([['from', node.details.failed_provider], ['to', node.details.next_provider]])}`
+        );
+    }
+    else if (type === 'fallback_fired') {
+        mainBlock = buildEvBlock(
+            'infra', ICONS.fallback, 'Fallback Fired', 'Transport layer: provider failover',
+            `<p class="ev-prose">${esc(node.details.reason || 'Provider failed at transport layer.')}</p>
+             ${buildChips([['failed', node.details.failed_provider], ['next', node.details.next_provider]])}`
+        );
+    }
+    else if (type === 'state_written') {
+        mainBlock = buildEvBlock(
+            'infra', ICONS.init, 'State Written', 'Context persistence layer',
+            `<p class="ev-prose" style="font-size:11px; color:var(--text-muted);">A lifecycle hook wrote a value to persistent context.</p>
+             ${buildChips([['key', node.details.key], ['hook', node.details.source_hook]])}`
+        );
+    }
+    else if (type === 'vault_accessed') {
+        mainBlock = buildEvBlock(
+            'infra', ICONS.policy, 'Vault Accessed', 'Credential access audit trail',
+            `<p class="ev-prose" style="font-size:11px; color:var(--text-muted);">A component retrieved a secret from the credential vault.</p>
+             ${buildChips([['secret', node.details.secret_key], ['accessor', node.details.accessor]])}`
+        );
+    }
+    else if (type === 'budget_notified') {
+        const pct = node.details.limit ? Math.round((node.details.current_tokens / node.details.limit) * 100) : '?';
+        mainBlock = buildEvBlock(
+            'infra', ICONS.human, 'Budget Notified', 'Soft token threshold crossed',
+            `<p class="ev-prose">Token usage: ${pct}%</p>
+             ${buildChips([['consumed', node.details.current_tokens], ['limit', node.details.limit]])}`
+        );
+    }
+    else if (type === 'tool_governance_applied') {
+        mainBlock = buildEvBlock(
+            'infra', ICONS.policy, 'Governance Applied', 'Per-tool compliance audit',
+            `<p class="ev-prose" style="font-size:11px; color:var(--text-muted);">Governance strategies evaluated for this tool call.</p>
+             ${buildChips([['tool', node.details.tool_name], ['human_gate', node.details.human_gate_strategy], ['sentinel', node.details.sentinel_strategy]])}`
+        );
+    }
+
+    if (mainBlock) {
+        sbBody.innerHTML = mainBlock;
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn-toggle';
+        toggleBtn.textContent = '{ } View raw JSON';
+        toggleBtn.onclick = () => {
+            rawVisible = !rawVisible;
+            rawDiv.style.display = rawVisible ? 'block' : 'none';
+            toggleBtn.textContent = rawVisible ? '↑ Hide JSON' : '{ } View raw JSON';
+        };
+        const rawDiv = document.createElement('div');
+        rawDiv.style.display = 'none';
+        rawDiv.innerHTML = `<div class="content-block"><pre>${jsh(node.details)}</pre></div>`;
+        sbBody.appendChild(toggleBtn);
+        sbBody.appendChild(rawDiv);
+    } else {
+        sbBody.innerHTML = `<div class="content-block"><pre>${jsh(node.details)}</pre></div>`;
+    }
+
+    document.getElementById('sidebar').classList.add('open');
+}
+
+function closeSb() { document.getElementById('sidebar').classList.remove('open'); }
+
+// ── Initialization ──
+syncSlider(); rebuildGraph(); renderHistory();
+startHealthCheck(); // Start health checking
+
+</script>
+</body>
+</html>

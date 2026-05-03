@@ -52,9 +52,17 @@ logs: ## Tail application logs
 
 # === DEVELOPMENT TOOLS ===
 
-test: ## Run tests (Usage: make test ARGS="-k agent")
-	@echo "🧪 Running tests inside container..."
-	@$(COMPOSE) exec app pytest $(ARGS)
+test: ## Run core unit tests (Fast). Usage: make test ARGS="-k agent"
+	@echo "🧪 Running UNIT tests (Fast)..."
+	@$(COMPOSE) exec app pytest tests/xulcan $(ARGS)
+
+fuzz: ## Run stress/fuzzing tests (Slow).
+	@echo "🔥 Running STRESS/FUZZ tests (The Crazy Monkey)..."
+	@$(COMPOSE) exec app pytest tests/props $(ARGS)
+
+test-all: ## Run ALL tests (Unit + Stress).
+	@echo "🚀 Running ALL tests..."
+	@$(COMPOSE) exec app pytest tests/ $(ARGS)
 
 lint: ## Run linters (Ruff/Black)
 	@$(COMPOSE) exec app ruff check . --fix

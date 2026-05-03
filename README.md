@@ -1,16 +1,52 @@
 # Xulcan
 
 <p align="center">
-    <a href="../README.md">English 🇬🇧</a>
+    <a href="README.md">English 🇬🇧</a>
     · <a href="docs/README.es.md">Spanish 🇲🇽</a>
 </p>
 
-**API-first backend framework for building AI agents with LLM orchestration, memory management, and tool execution.**
+**The Deterministic Operating System for AI Agents.**
+
+Xulcan is a strict, type-safe **Agentic Operating System (Agentic OS)** designed from the ground up for engineering and production environments. Based on the principles of Domain-Driven Design (DDD) and Cybernetics, it treats Agents as Data, History as an Immutable Ledger, and Execution as a deterministic state machine.
 
 [![License](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
+[![Architecture](https://img.shields.io/badge/Architecture-Event%20Sourced-purple.svg)]()
+[![Core](https://img.shields.io/badge/Core-Frozen%20v1.0-green.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
+
+---
+
+## The Concept: The Agentic OS 🖥️
+
+Understanding Xulcan is easy if you map it to classical computer architecture (Von Neumann). We separate the chaos of LLMs from the strictness of software engineering:
+
+| OS Module | The AI Equivalent | Description |
+| :--- | :--- | :--- |
+| **CPU (ALU)** | **LLM Adapters** | The models (Gemini, Ollama). They are stateless, isolated, and only process semantics to output intentions (`ToolCalls`). |
+| **Kernel / FSM** | **ProtoKernel** | The execution loop. It manages token budgets, mitigates entropy, handles errors safely, and orchestrates the state machine. |
+| **RAM (Memory)** | **StateStore / Blackboard** | Ephemeral shared memory. Allows passing huge payloads (like APIs or PDFs) by reference instead of burning LLM tokens. |
+| **Peripherals** | **Sandbox / Network** | The "Hands". Sandboxed Docker containers and network executors that safely interact with the real world. |
+| **Hard Drive** | **The Ledger** | An immutable, append-only Event Sourcing log of every thought and action. Enables forensic auditability. |
+
+---
+
+## Infrastructure as Code (IaC) for Agents 📜
+
+Xulcan separates the **Software Engineering** from the **Prompt Engineering**. Agents are not hardcoded in Python; they are defined in YAML manifests.
+
+```yaml
+# manifests/analyst_agent.yaml
+name: "Financial Analyst"
+model_provider: "google"
+model_name: "gemini-2.5-flash"
+system_prompt: "You are an expert analyst. Use your sandbox to calculate..."
+tools:
+  - name: "network_api_get"
+    enabled: true
+  - name: "sandbox_run_bash"
+    enabled: true
+```
+*Just load the manifest and let the OS handle the rest.*
 
 ---
 
@@ -18,209 +54,64 @@
 
 ### Prerequisites
 - Docker & Docker Compose
-- Make (Standard in Linux/Mac. Windows users can use WSL2 or Git Bash)
-- Python 3.11+ (recommended for local tooling)
+- Make (Linux/Mac/WSL2)
+- Python 3.11+
 
-### Setup (2 minutes)
-
-We use a `Makefile` to standardize development tasks. No more loose scripts.
-
+### Option A: Standalone Usage (Python Script)
+Perfect for testing and running agents locally.
 ```bash
-# 1. Clone the repository
+# 1. Clone & Install
 git clone https://github.com/ActraStride/xulcan.git
 cd xulcan
+pip install -e .
 
-# 2. Setup environment (Generates secrets, .env, and builds images)
-make setup
+# 2. Run the demo agent
+python demo.py
+```
 
-# 3. Start services in background
+### Option B: Server Deployment (FastAPI)
+Launch the full Nivel 2 B2B infrastructure with Postgres and Redis.
+```bash
+# Start the Xulcan API and Databases
 make dev
 
-# 4. Verify installation
+# Verify the OS is alive
 curl http://localhost:8000/health/live
-```
-
-### Access Points
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **API** | http://localhost:8000 | - |
-| **API Docs** | http://localhost:8000/docs | - |
-| **pgAdmin** | http://localhost:5050 | `admin@xulcan.dev` / (see `.secrets/pgadmin_password`) |
-| **Redis Insight** | http://localhost:5540 | Configure manually on first access |
-
----
-
-## Developer Interface (Make)
-
-We provide a robust `Makefile` to handle common tasks. Run `make help` to see all commands.
-
-| Command | Description |
-|---------|-------------|
-| `make setup` | Generates secrets, `.env` file, and builds Docker images. |
-| `make dev` | Starts the full stack (API + DB + Tools) and tails logs. |
-| `make up` | Starts the stack in detached mode (silent). |
-| `make stop` | Stops containers without removing them. |
-| `make clean` | **Destructive**. Removes containers, volumes, and local cache. |
-| `make test` | Runs the pytest suite inside the container. |
-| `make shell` | Opens a bash shell inside the API container. |
-| `make db-shell`| Opens a `psql` session directly to the database. |
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     FastAPI Application                 │
-│                                                         │
-│  • REST API (Universal Executor)                        │
-│  • Health checks (/health/live)                         │
-│  • Structured logging (JSON/Console)                    │
-└───────────────────┬─────────────────────────────────────┘
-                    │
-        ┌───────────┴───────────┐
-        │                       │
-┌───────▼────────┐    ┌─────────▼───────┐
-│   PostgreSQL   │    │      Redis      │
-│ (Vectors/Data) │    │ (Cache/Queue)   │
-└────────────────┘    └─────────────────┘
-```
-
-### Core Components
-
-- **FastAPI**: Async REST API with automatic OpenAPI docs.
-- **PostgreSQL**: Primary data store. Will support `pgvector` for RAG.
-- **Redis**: High-performance caching, rate limiting, and task queue broker.
-- **Arq**: (Planned) Async job queue built on Redis for background agent reasoning.
-- **Docker Secrets**: Secure credential management for production-grade security.
-
----
-
-## Configuration
-
-### Environment Variables
-
-Configuration is managed via `.env` file (created automatically by `make setup`) and Docker Secrets.
-
-```bash
-# Application
-APP_ENV=development
-LOG_LEVEL=debug
-
-# Database & Redis
-POSTGRES_USER=xulcan
-POSTGRES_DB=xulcan_core
-REDIS_PORT=6379
-
-# AI Providers (Get your own keys)
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-### Secrets Management
-
-Sensitive passwords are **never** stored in environment variables. They are managed via files in `.secrets/` mounted directly into containers.
-
-To regenerate secrets (e.g., if you forgot the pgAdmin password):
-
-```bash
-# Warning: This overwrites existing secrets
-rm .secrets/*
-make setup
 ```
 
 ---
 
 ## Project Structure
 
-```
+The codebase strictly follows Hexagonal Architecture. Upper levels depend on lower levels, never the reverse.
+
+```text
 xulcan/
 ├── app/
-│   └── xulcan/
-│       ├── main.py              # Application entry point
-│       ├── config.py            # Pydantic settings
-│       └── core/                # Core logic
-├── scripts/
-│   └── setup_dev_secrets.sh     # Secret generation logic
-├── tests/                       # Pytest suite
-├── docker-compose.yaml          # Orchestration
-├── Makefile                     # Developer Task Runner
-├── pytest.ini                   # Test configuration
-└── README.md
+│   ├── xulcan/
+│   │   ├── core/          # Level 0: Primitives & Economics
+│   │   ├── protocol/      # Level 1: Messages & Tools Schemas
+│   │   ├── blueprint/     # Level 1: YAML Loaders & Agent Naming
+│   │   ├── ledger/        # Level 2: Event Sourcing & Auditability
+│   │   ├── memory/        # Level 2: StateStore (Blackboard)
+│   │   ├── llm/           # Level 3: Stateless Adapters (Gemini, Ollama)
+│   │   ├── tools/         # Level 3: Executors (Docker Sandbox, Network)
+│   │   └── kernel/        # Level 3: The FSM Runtime Engine
+│   └── main.py            # FastAPI Entrypoint (Wrapper)
+├── manifests/             # 📜 IaC Agent Definitions (YAML)
+├── demo.py                # Standalone Client Example
+├── tests/                 # Pytest suite
+├── docker-compose.yaml
+└── Makefile
 ```
 
 ---
 
-## Deployment
+## Why Xulcan?
 
-### Production Checklist
+1.  **Strict Entropy Control:** The LLM does not dictate the flow. The Kernel's Finite State Machine (FSM) traps errors, prevents infinite loops, and forces determinism.
+2.  **True Physical Isolation:** Code generated by the agent is executed in ephemeral, lazy-loaded Docker containers (`SandboxExecutor`) with zero risk to the host machine.
+3.  **Forensic Auditability:** The `Ledger` records every token, latency, and tool execution. You never wonder "Why did the agent do that?". You have the mathematical proof.
+4.  **Fractal Swarms:** Agents can invoke other Blueprints as tools (`SubAgentExecutor`), creating hierarchical teams natively.
 
-- [ ] Set `ENVIRONMENT=production` in `.env`.
-- [ ] Use `make setup` on the server to generate unique secrets.
-- [ ] Set strict firewall rules for Redis and Postgres ports.
-- [ ] Configure a reverse proxy (Nginx/Traefik) with SSL.
-- [ ] Use an external Secret Manager (like Infisical) for API Keys.
-
-### Docker Production Build
-
-```bash
-# Build production image
-docker build -t xulcan-api:latest .
-
-# Run with production secrets
-docker run -d \
-  -p 8000:8000 \
-  -e ENVIRONMENT=production \
-  --secret postgres_password \
-  --secret redis_password \
-  xulcan-api:latest
-```
-
----
-
-## Roadmap
-
-### ✅ Completed
-- Base infrastructure (Docker, Postgres, Redis).
-- **Developer Experience**: Makefile, Healthchecks, Hot-reload.
-- Security: Docker Secrets, non-root containers.
-- Development tools: pgAdmin, Redis Insight.
-
-### 🚧 In Progress (Q1 2025)
-- **Universal Executor**: No-code tool execution engine.
-- **Agent Registry**: Database schema for defining agents via JSON/YAML.
-- **Auth Gateway**: Integration with Vault/Infisical for tool authentication.
-
-### 📋 Planned (Q2 2025)
-- **RAG Integration**: Native `pgvector` support.
-- **Async Reasoning**: Background workers using **Arq**.
-- **Admin Dashboard**: Web UI to manage agents and view metrics.
-
----
-
-## Troubleshooting
-
-### Services behave unexpectedly
-Run a full clean restart to ensure no stale volumes exist:
-```bash
-make clean
-make setup
-make dev
-```
-
-### "Redis is unhealthy"
-Ensure you ran `make setup` to generate the `.secrets/redis_password` file. The container requires this file to pass health checks.
-
-### Port conflicts
-If ports 8000, 5432, or 6379 are taken, modify the `.env` file generated by `make setup`.
-
----
-
-## License
-
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPLv3)** - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Status**: 🚀 Active Development | **Version**: 0.2.0-alpha
+***
