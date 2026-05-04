@@ -5,7 +5,7 @@ on:
     branches:
       - develop      # 🚀 Snapshot Mode: Se dispara con cada push a develop
     tags:
-      - 'v*.*.*'     # 💎 Release Mode: Se dispara con tags de versión
+      - 'v*'     # 💎 Release Mode: Se dispara con tags de versión
 
 jobs:
   build-and-push-image:
