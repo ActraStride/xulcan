@@ -3,9 +3,11 @@ name: Build and Publish Xulcan Engine
 on:
   push:
     branches:
-      - develop      # 🚀 Snapshot Mode: Se dispara con cada push a develop
+      - main         # 🏆 Lanza la imagen 'latest'
+      - develop      # 🧪 Lanza la imagen 'dev' (Tu laboratorio)
+      - worldly      # 🌍 Lanza la imagen 'worldly' (Entorno real / Staging)
     tags:
-      - 'v*'     # 💎 Release Mode: Se dispara con tags de versión
+      - 'v*.*.*'     # 💎 Lanza versiones oficiales (ej. v1.0.0)
 
 jobs:
   build-and-push-image:
@@ -27,18 +29,22 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: docker.io/silixe/xulcan
+          # Usamos tu variable de secreto para que sea dinámico
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/xulcan
           tags: |
-            # 1. Si haces un Tag (v0.3.0), genera la versión limpia (0.3.0)
+            # 1. Versiones Oficiales: Si haces tag v1.2.3, crea imagen '1.2.3'
             type=semver,pattern={{version}}
             
-            # 2. Genera el tag 'latest' solo cuando se haga un tag oficial en main
+            # 2. Producción: Si el push es a 'main', crea imagen 'latest'
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-            # 3. MAGIC: Cada push a 'develop' sobreescribe el tag 'dev' (Tu Snapshot)
+            # 3. Laboratorio: Si el push es a 'develop', crea imagen 'dev'
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
 
-            # 4. Incluye el SHA corto del commit por si necesitas auditar algo
+            # 4. Pruebas Reales: Si el push es a 'worldly', crea imagen 'worldly'
+            type=raw,value=worldly,enable=${{ github.ref == 'refs/heads/worldly' }}
+
+            # 5. Seguridad/Trazabilidad: Crea siempre una etiqueta con el SHA del commit
             type=sha,format=short,prefix=sha-
 
       - name: Build and push Docker image
