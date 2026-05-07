@@ -40,7 +40,7 @@ from xulcan.governance.human.strategies.terminal import TerminalHumanGateStrateg
 from xulcan.governance.human.strategies.api import ApiHumanGateStrategy
 
 # ── System factories ──
-from xulcan.system.registry import ProviderRegistry, CredentialProxy
+from xulcan.registry import ProviderRegistry, CredentialProxy
 from xulcan.system.loader import BlueprintLoader
 from xulcan.kernel.runtime import ProtoKernel
 from xulcan.blueprint.schema import AgentBlueprint
@@ -135,7 +135,7 @@ class Xulcan:
             "github": {"api_key": github_token or os.getenv("GITHUB_TOKEN")},
         }
 
-        from xulcan.system.registry import ToolSecretsVault
+        from xulcan.registry import ToolSecretsVault
         self.tool_vault = ToolSecretsVault(tool_secrets or {})
 
         # The CredentialProxy protects both LLM adapters and tool credentials
