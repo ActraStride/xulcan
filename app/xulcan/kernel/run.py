@@ -32,7 +32,7 @@ from xulcan.kernel.interfaces import (
     LedgerRepository, ToolExecutor, LLMProvider, ContextStrategy, 
     BursarStrategy, SentinelStrategy, HumanGateStrategy
 )
-from xulcan.system.registry import ProviderRegistry
+from xulcan.registry import ProviderRegistry
 from xulcan.kernel.environment import SystemEnvironment
 
 from xulcan.blueprint.schema import AgentBlueprint

@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Any
 
-from xulcan.system.registry import ProviderRegistry
+from xulcan.registry import ProviderRegistry
 from xulcan.llm.base import BaseLLMAdapter
 from xulcan.llm.exceptions import TransientLLMError, FatalLLMError
 from xulcan.blueprint.schema import AgentBlueprint, ModelSpec
