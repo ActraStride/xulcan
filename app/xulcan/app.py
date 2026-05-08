@@ -7,11 +7,13 @@ FIXED ISSUES:
     - BaseLLMAdapter → LLMProvider (correct interface name)
     - Proper credential handling
     - Consistent registry usage
+    - Issue 23: Registry instantiation now delegated to RegistryContainer + bootstrap_registries
 
 Separation of concerns:
-    app.py knows:    WHICH adapters to use, WHERE credentials come from.
-    Blueprint knows: HOW the agent thinks, WHAT tools it has.
-    Kernel knows:    HOW to drive the FSM loop.
+    registry/bootstrap.py knows: WHICH built-in adapters exist
+    app.py knows:               WHERE credentials come from, HOW to wire them
+    Blueprint knows:            HOW the agent thinks, WHAT tools it has
+    Kernel knows:               HOW to drive the FSM loop
 """
 
 from __future__ import annotations
@@ -29,18 +31,9 @@ from xulcan.kernel.interfaces import (
     LLMProvider, LLMOrchestrator, LedgerRepository, StateStore,
     ContextStrategy, BursarStrategy, SentinelStrategy, HumanGateStrategy, EventBus
 )
-from xulcan.context.strategies.full import FullHistoryStrategy
-from xulcan.context.strategies.sliding import SlidingWindowStrategy
-from xulcan.governance.bursar.strategies.unlimited import UnlimitedBursarStrategy
-from xulcan.governance.bursar.strategies.enforced import EnforcedBursarStrategy
-from xulcan.governance.sentinel.strategies.passthrough import PassthroughSentinelStrategy
-from xulcan.governance.sentinel.strategies.blocklist import BlocklistSentinelStrategy
-from xulcan.governance.human.strategies.auto import AutoApproveHumanGateStrategy
-from xulcan.governance.human.strategies.terminal import TerminalHumanGateStrategy
-from xulcan.governance.human.strategies.api import ApiHumanGateStrategy
 
 # ── System factories ──
-from xulcan.registry import ProviderRegistry, CredentialProxy
+from xulcan.registry import ProviderRegistry, CredentialProxy, RegistryContainer, bootstrap_registries
 from xulcan.system.loader import BlueprintLoader
 from xulcan.kernel.runtime import ProtoKernel
 from xulcan.blueprint.schema import AgentBlueprint
@@ -48,16 +41,7 @@ from xulcan.protocol.tools import ToolDefinition, FunctionDef
 from xulcan.kernel.environment import SystemEnvironment
 
 # ── Adapters (Classes, not instances) ──
-from xulcan.ledger.adapters.in_memory import InMemoryLedger
-from xulcan.memory.state.adapters.in_memory import MemoryStateStore
 from xulcan.memory.vault.adapters.in_memory import MemoryVaultStore
-from xulcan.bus.adapters.in_memory import InMemoryEventBus
-from xulcan.llm.adapters.gemini import GeminiAdapter
-from xulcan.llm.adapters.ollama import OllamaAdapter
-from xulcan.llm.adapters.groq import GroqAdapter
-from xulcan.llm.adapters.sambanova import SambaNovaAdapter
-from xulcan.llm.adapters.github import GitHubModelsAdapter
-
 from xulcan.llm.executor import LLMExecutor
 
 # ── Executors ──
@@ -86,48 +70,29 @@ class Xulcan:
         self.agent_registry: dict[str, AgentBlueprint] = {}
 
         # ══════════════════════════════════════════════════════════════════
-        # 1. REGISTRIES (Abstract Factories)
+        # 1. REGISTRIES (Abstract Factories via RegistryContainer)
         # ══════════════════════════════════════════════════════════════════
-        self.ledger_registry: ProviderRegistry[LedgerRepository] = ProviderRegistry("Ledger")
-        self.store_registry: ProviderRegistry[StateStore] = ProviderRegistry("StateStore")
-        self.bus_registry: ProviderRegistry[EventBus] = ProviderRegistry("EventBus")
+        # Issue 23: Delegate all registry instantiation and bootstrap to
+        # RegistryContainer + bootstrap_registries(). This is the only place
+        # in app.py that interacts with raw registries.
+        self.registries = RegistryContainer()
+        bootstrap_registries(self.registries)
 
-        # ✅ FIX: Use LLMProvider (correct interface name), not BaseLLMAdapter
-        base_llm_registry: ProviderRegistry[LLMProvider] = ProviderRegistry("LLM")
-
-        self.context_registry: ProviderRegistry[ContextStrategy] = ProviderRegistry("Context")
-        self.bursar_registry: ProviderRegistry[BursarStrategy] = ProviderRegistry("Bursar")
-        self.sentinel_registry: ProviderRegistry[SentinelStrategy] = ProviderRegistry("Sentinel")
-        self.human_gate_registry: ProviderRegistry[HumanGateStrategy] = ProviderRegistry("HumanGate")
-
-        # ── Infrastructure Registry ──
-        self.ledger_registry.register("memory", InMemoryLedger)
-        self.store_registry.register("memory", MemoryStateStore)
-        self.bus_registry.register("memory", InMemoryEventBus)
-
-        # ── LLM Model Registry ──
-        base_llm_registry.register("google", GeminiAdapter)
-        base_llm_registry.register("groq", GroqAdapter)
-        base_llm_registry.register("ollama", OllamaAdapter)
-        base_llm_registry.register("sambanova", SambaNovaAdapter)
-        base_llm_registry.register("github", GitHubModelsAdapter)
-
-        # ── Strategy Registries ──
-        self.context_registry.register("full_history", FullHistoryStrategy)
-        self.context_registry.register("sliding_window", SlidingWindowStrategy)
-        self.bursar_registry.register("unlimited", UnlimitedBursarStrategy)
-        self.bursar_registry.register("enforced", EnforcedBursarStrategy)
-        self.sentinel_registry.register("passthrough", PassthroughSentinelStrategy)
-        self.sentinel_registry.register("blocklist", BlocklistSentinelStrategy)
-        self.human_gate_registry.register("auto_approve", AutoApproveHumanGateStrategy)
-        self.human_gate_registry.register("terminal", TerminalHumanGateStrategy)
-        self.human_gate_registry.register("api", ApiHumanGateStrategy)
+        # Maintain attribute aliases for backward compatibility with kernel
+        # and other components that expect these as top-level attributes
+        self.ledger_registry = self.registries.ledger
+        self.store_registry = self.registries.state_store
+        self.bus_registry = self.registries.event_bus
+        self.context_registry = self.registries.context
+        self.bursar_registry = self.registries.bursar
+        self.sentinel_registry = self.registries.sentinel
+        self.human_gate_registry = self.registries.human_gate
 
         # ══════════════════════════════════════════════════════════════════
         # 2. CREDENTIALS & ORCHESTRATOR
         # ══════════════════════════════════════════════════════════════════
         llm_secrets = {
-            "google": {"api_key": gemini_api_key or os.getenv("GEMINI_API_KEY")},
+            "gemini": {"api_key": gemini_api_key or os.getenv("GEMINI_API_KEY")},
             "groq": {"api_key": groq_api_key or os.getenv("GROQ_API_KEY")},
             "ollama": {"host": ollama_host},
             "anthropic": {"api_key": anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")},
@@ -140,7 +105,7 @@ class Xulcan:
 
         # The CredentialProxy protects both LLM adapters and tool credentials
         self.llm_registry = CredentialProxy(
-            base_llm_registry,
+            self.registries.llm,
             llm_secrets,
             tool_vault=self.tool_vault
         )
