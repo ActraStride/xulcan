@@ -1,0 +1,1 @@
+from xulcan.manifest.schema import InfraprintManifest
