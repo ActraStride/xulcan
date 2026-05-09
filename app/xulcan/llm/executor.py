@@ -1,11 +1,9 @@
 """LLM Executor — The Router and Fallback Orchestrator for Models."""
 
 from __future__ import annotations
-import json
 import logging
 from typing import Any
 
-from xulcan.registry import ProviderRegistry
 from xulcan.llm.base import BaseLLMAdapter
 from xulcan.llm.exceptions import TransientLLMError, FatalLLMError
 from xulcan.blueprint.schema import AgentBlueprint, ModelSpec
@@ -16,37 +14,27 @@ from xulcan.protocol.tools import ToolDefinition
 logger = logging.getLogger("xulcan.llm.executor")
 
 class LLMExecutor:
-    """Orchestrates LLM generation, managing lifecycle, caching, and fallbacks."""
+    """Orchestrates LLM generation, managing fallbacks and runtime-bound adapters."""
 
-    def __init__(self, registry: ProviderRegistry[BaseLLMAdapter]):
-        self.registry = registry
-        self._adapter_cache: dict[str, BaseLLMAdapter] = {}
+    def __init__(self, instances: dict[str, BaseLLMAdapter]):
+        self._instances = instances
 
-    def _get_adapter(self, spec: ModelSpec):
-        """
-        Traductor: Convierte un ModelSpec de la Ontología en el 
-        diccionario plano que el Registry y los Adapters esperan.
-        """
-        # 1. Recuperamos el caché si existe
-        cache_key = f"{spec.provider}:{spec.name}:{spec.temperature}"
-        if cache_key in self._adapter_cache:
-            return self._adapter_cache[cache_key]
+    def _get_adapter(self, spec: ModelSpec) -> BaseLLMAdapter:
+        if spec.provider not in self._instances:
+            raise ValueError(
+                f"LLM instance '{spec.provider}' not found in runtime topology. "
+                f"Available: {list(self._instances.keys())}"
+            )
+        return self._instances[spec.provider]
 
-        # 2. Preparamos los parámetros para el adaptador viejo
-        # Aquí es donde resolvemos el error de 'model_name missing' de Gemini
-        adapter_params = dict(spec.params) # Traemos los extras (top_p, etc.)
-        adapter_params["model_name"] = spec.name
-        adapter_params["temperature"] = spec.temperature
-        
-        if spec.max_tokens:
-            adapter_params["max_tokens"] = spec.max_tokens
-
-        # 3. Construimos vía Registry
-        adapter = self.registry.build(spec.provider, adapter_params)
-        
-        # 4. Guardamos en caché y retornamos
-        self._adapter_cache[cache_key] = adapter
-        return adapter
+    @staticmethod
+    def _build_inference_kwargs(spec: ModelSpec, kwargs: dict[str, Any]) -> dict[str, Any]:
+        inference_kwargs = dict(kwargs)
+        inference_kwargs.update(spec.params)
+        inference_kwargs["model_name"] = spec.name
+        inference_kwargs["temperature"] = spec.temperature
+        inference_kwargs["max_tokens"] = spec.max_tokens
+        return inference_kwargs
 
     async def generate(
         self, 
@@ -67,11 +55,14 @@ class LLMExecutor:
         for i, spec in enumerate(specs):
             provider_name = spec.provider  # Ahora es un atributo del objeto
             try:
-                # ✅ Llamamos pasando el objeto completo (2 argumentos: self y spec)
                 adapter = self._get_adapter(spec)
-                
-                response = await adapter.generate(messages=messages, tools=tools, **kwargs)
-                
+                inference_kwargs = self._build_inference_kwargs(spec, kwargs)
+                response = await adapter.generate(
+                    messages=messages,
+                    tools=tools,
+                    **inference_kwargs,
+                )
+
                 # Inyectamos metadatos de éxito
                 response.provider_metadata["actual_provider"] = provider_name
                 response.provider_metadata["actual_model"] = spec.name

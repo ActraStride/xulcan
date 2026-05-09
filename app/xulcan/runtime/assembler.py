@@ -9,7 +9,6 @@ from typing import Optional
 
 from xulcan.runtime.topology import ResolvedInfrastructure
 from xulcan.runtime.context import RuntimeContext
-from xulcan.runtime.llm_registry_adapter import RuntimeLLMRegistryAdapter
 from xulcan.registry.container import RegistryContainer
 
 from xulcan.kernel.environment import SystemEnvironment
@@ -33,7 +32,7 @@ class RuntimeAssembler:
 
     Wiring order:
         1. SystemEnvironment  (requires state_store, vault, event_bus)
-        2. LLM surface        (RuntimeLLMRegistryAdapter → LLMExecutor)
+        2. LLM surface        (runtime instances → LLMExecutor)
         3. Tool executors     (each receives environment)
         4. ToolRouterExecutor (receives environment; routes populated later)
         5. SandboxExecutor    (optional — graceful on Docker absence)
@@ -70,11 +69,9 @@ class RuntimeAssembler:
         logger.debug("✓ SystemEnvironment assembled")
 
         # ── 2. LLM Execution Surface ─────────────────────────────────────
-        # RuntimeLLMRegistryAdapter bridges pre-instantiated adapters
-        # to legacy registry.build() contract. LLMExecutor unchanged.
-        llm_registry_adapter = RuntimeLLMRegistryAdapter(infra.llm_instances)
-        llm_executor = LLMExecutor(registry=llm_registry_adapter)
-        logger.debug("✓ LLMExecutor assembled via RuntimeLLMRegistryAdapter")
+        # Runtime topology now supplies fully built adapter instances.
+        llm_executor = LLMExecutor(instances=infra.llm_instances)
+        logger.debug("✓ LLMExecutor assembled with runtime LLM instances")
 
         # ── 3. Tool Executors ────────────────────────────────────────────
         # Each executor receives environment for state/vault access.

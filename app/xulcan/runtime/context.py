@@ -26,7 +26,7 @@ class RuntimeContext(ImmutableRecord):
         infrastructure:  Stage-1 topology from ManifestResolver.
                          Includes original manifest for introspection.
         environment:     SystemEnvironment wired with state_store, vault, event_bus.
-        llm_executor:    LLMExecutor backed by RuntimeLLMRegistryAdapter.
+        llm_executor:    LLMExecutor backed by runtime-bound LLM instances.
         tool_router:     ToolRouterExecutor — assembled capability surface.
                          Routes are empty at assembly time; populated by
                          public API (@tool, add_agent, enable_sandbox) in Issue 5.
