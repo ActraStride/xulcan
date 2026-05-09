@@ -20,7 +20,7 @@ from xulcan.kernel.environment import SystemEnvironment
 
 # Avoid circular imports at runtime
 if TYPE_CHECKING:
-    from xulcan.kernel.runtime import ProtoKernel
+    from xulcan.kernel.orchestrator import ProtoKernel
 
 logger = logging.getLogger("xulcan.tools.executors.subagent")
 

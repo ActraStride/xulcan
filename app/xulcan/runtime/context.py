@@ -7,7 +7,7 @@ from typing import Optional
 
 from xulcan.core.primitives import ImmutableRecord
 from xulcan.runtime.topology import ResolvedInfrastructure
-from xulcan.kernel.runtime import ProtoKernel
+from xulcan.kernel.orchestrator import ProtoKernel
 from xulcan.kernel.environment import SystemEnvironment
 from xulcan.llm.executor import LLMExecutor
 from xulcan.tools.base import BaseToolExecutor

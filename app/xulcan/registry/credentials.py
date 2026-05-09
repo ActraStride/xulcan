@@ -6,9 +6,7 @@ in provider registries.
 
 from __future__ import annotations
 
-from typing import TypeVar, Generic, Any
-
-from .base import ProviderRegistry
+from typing import TypeVar, Any
 
 T = TypeVar('T')
 
@@ -77,7 +75,7 @@ class ToolSecretsVault:
 
         Args:
             tool_name: The tool identifier (matches @tool(name="...")).
-            secrets: Key-value pairs of secrets for this tool.
+            secrets: Key-value pairs of secrets.
                 Example: {"api_key": "...", "secret": "..."}
 
         Example:
@@ -137,87 +135,6 @@ class ToolSecretsVault:
             return {**params, **secrets}
         return params
 
-
-class CredentialProxy(Generic[T]):
-    """Generic Transparent Proxy for Just-In-Time Secret Injection.
-
-    Wraps ANY ProviderRegistry (LLMs, Ledgers, VectorDBs) to inject
-    credentials without altering the pure registry logic.
-
-    NOTE: For tool credentials (external tools like Slack, GitHub, etc.),
-    use ToolSecretsVault instead. CredentialProxy is designed for
-    infrastructure components (LLMs, databases), not tool-level secrets.
-    """
-
-    def __init__(
-        self,
-        registry: ProviderRegistry[T],
-        llm_secrets: dict[str, dict[str, Any]],
-        tool_vault: ToolSecretsVault | None = None
-    ):
-        """Initialize the proxy.
-
-        Args:
-            registry: The underlying ProviderRegistry to wrap.
-            llm_secrets: Secrets map for LLM/infrastructure providers.
-                Example: {"gemini": {"api_key": "..."}, "postgres": {"password": "..."}}
-            tool_vault: Optional vault for tool-scoped credentials.
-                See ToolSecretsVault for details.
-        """
-        self._registry = registry
-        self._llm_secrets = llm_secrets
-        self._tool_vault = tool_vault or ToolSecretsVault()
-
-    def build(self, name: str, params: dict[str, Any]) -> T:
-        """Intercepts build(), injects secrets if they exist, and delegates.
-
-        Priority:
-            1. LLM secrets (llm_secrets) — for infrastructure components
-            2. Tool secrets (tool_vault) — via inject() method
-        """
-        merged_params = dict(params)
-
-        # Inject LLM/infrastructure secrets
-        provider_secrets = self._llm_secrets.get(name)
-        if provider_secrets:
-            merged_params.update(provider_secrets)
-
-        # Inject tool secrets (for external tools)
-        merged_params = self._tool_vault.inject(name, merged_params)
-
-        return self._registry.build(name, merged_params)
-
-    def register(self, name: str, provider_class: type[T]) -> None:
-        """Delegates registration to the real registry."""
-        self._registry.register(name, provider_class)
-
-    def get_class(self, name: str) -> type[T]:
-        """Returns the class from the underlying registry."""
-        return self._registry.get_class(name)
-
-    @property
-    def available_providers(self) -> list[str]:
-        """List of all registered provider names."""
-        return self._registry.available_providers
-
-    # ── Tool Vault Access ──────────────────────────────────────────────────
-
-    @property
-    def tool_vault(self) -> ToolSecretsVault:
-        """Access the tool vault for managing tool-specific credentials."""
-        return self._tool_vault
-
-    def register_tool_secret(self, tool_name: str, secrets: dict[str, Any]) -> None:
-        """Register credentials for a specific tool.
-
-        Args:
-            tool_name: The tool identifier.
-            secrets: Key-value pairs of secrets.
-
-        Example:
-            >>> proxy.register_tool_secret("slack", {
-            ...     "bot_token": "xoxb-...",
-            ...     "signing_secret": "..."
-            ... })
-        """
-        self._tool_vault.register(tool_name, secrets)
+# CredentialProxy has been removed from Xulcan's public runtime model.
+# Runtime credential resolution now occurs during manifest materialization
+# in xulcan.runtime.resolver.ManifestResolver.

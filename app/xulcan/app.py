@@ -1,7 +1,8 @@
 """Xulcan OS — The Core Application Facade (DEFINITIVE VERSION).
 
-Acts as the IoC Container / Assembler for the entire Xulcan ecosystem.
-This is the only place in the system that knows about concrete implementations.
+Acts as the runtime-native facade over RuntimeContext.
+Public API surface only; runtime construction is delegated to the
+materialization and assembly pipeline.
 
 FIXED ISSUES:
     - BaseLLMAdapter → LLMProvider (correct interface name)
@@ -27,138 +28,87 @@ import glob
 from collections.abc import Callable
 from typing import Any, get_origin, get_args, AsyncIterator
 
-from xulcan.kernel.interfaces import (
-    LLMProvider, LLMOrchestrator, LedgerRepository, StateStore,
-    ContextStrategy, BursarStrategy, SentinelStrategy, HumanGateStrategy, EventBus
-)
-
 # ── System factories ──
-from xulcan.registry import ProviderRegistry, CredentialProxy, RegistryContainer, bootstrap_registries
+from xulcan.registry import RegistryContainer, bootstrap_registries
 from xulcan.system.loader import BlueprintLoader
-from xulcan.kernel.runtime import ProtoKernel
+from xulcan.kernel.orchestrator import ProtoKernel
+from xulcan.runtime import ManifestResolver, RuntimeAssembler, RuntimeContext
 from xulcan.blueprint.schema import AgentBlueprint
 from xulcan.protocol.tools import ToolDefinition, FunctionDef
-from xulcan.kernel.environment import SystemEnvironment
-
-# ── Adapters (Classes, not instances) ──
-from xulcan.memory.vault.adapters.in_memory import MemoryVaultStore
-from xulcan.llm.executor import LLMExecutor
-
-# ── Executors ──
-from xulcan.tools.router import ToolRouterExecutor
-from xulcan.tools.executors.local import LocalPythonExecutor
-from xulcan.tools.executors.agent import SubAgentExecutor
-from xulcan.tools.executors.sandbox.docker import DockerProvider
-from xulcan.tools.executors.sandbox.executor import SandboxExecutor
 
 logger = logging.getLogger("xulcan.app")
 
 
 class Xulcan:
-    """Xulcan Agent OS — Facade and IoC Container."""
+    """Xulcan Agent OS — Facade over an assembled RuntimeContext.
 
-    def __init__(
-        self,
-        gemini_api_key: str | None = None,
-        groq_api_key: str | None = None,
-        ollama_host: str = "http://ollama:11434",
-        anthropic_api_key: str | None = None,
-        sambanova_api_key: str | None = None,
-        github_token: str | None = None,
-        tool_secrets: dict[str, dict[str, Any]] | None = None,
-    ):
+    This class delegates execution and observability to RuntimeContext.
+    It does not construct infrastructure directly.
+    """
+
+    def __init__(self, runtime: RuntimeContext):
+        self._runtime = runtime
         self.agent_registry: dict[str, AgentBlueprint] = {}
+        self._registries: RegistryContainer | None = None
 
-        # ══════════════════════════════════════════════════════════════════
-        # 1. REGISTRIES (Abstract Factories via RegistryContainer)
-        # ══════════════════════════════════════════════════════════════════
-        # Issue 23: Delegate all registry instantiation and bootstrap to
-        # RegistryContainer + bootstrap_registries(). This is the only place
-        # in app.py that interacts with raw registries.
-        self.registries = RegistryContainer()
-        bootstrap_registries(self.registries)
+    @classmethod
+    async def from_manifest(cls, manifest_path: str) -> "Xulcan":
+        container = RegistryContainer()
+        bootstrap_registries(container)
 
-        # Maintain attribute aliases for backward compatibility with kernel
-        # and other components that expect these as top-level attributes
-        self.ledger_registry = self.registries.ledger
-        self.store_registry = self.registries.state_store
-        self.bus_registry = self.registries.event_bus
-        self.context_registry = self.registries.context
-        self.bursar_registry = self.registries.bursar
-        self.sentinel_registry = self.registries.sentinel
-        self.human_gate_registry = self.registries.human_gate
+        resolver = ManifestResolver(container)
+        infrastructure = await resolver.load(manifest_path)
 
-        # ══════════════════════════════════════════════════════════════════
-        # 2. CREDENTIALS & ORCHESTRATOR
-        # ══════════════════════════════════════════════════════════════════
-        llm_secrets = {
-            "gemini": {"api_key": gemini_api_key or os.getenv("GEMINI_API_KEY")},
-            "groq": {"api_key": groq_api_key or os.getenv("GROQ_API_KEY")},
-            "ollama": {"host": ollama_host},
-            "anthropic": {"api_key": anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")},
-            "sambanova": {"api_key": sambanova_api_key or os.getenv("SAMBANOVA_API_KEY")},
-            "github": {"api_key": github_token or os.getenv("GITHUB_TOKEN")},
-        }
+        assembler = RuntimeAssembler(infrastructure, container)
+        runtime = await assembler.assemble()
 
-        from xulcan.registry import ToolSecretsVault
-        self.tool_vault = ToolSecretsVault(tool_secrets or {})
+        instance = cls(runtime)
+        instance._registries = container
+        return instance
 
-        # The CredentialProxy protects both LLM adapters and tool credentials
-        self.llm_registry = CredentialProxy(
-            self.registries.llm,
-            llm_secrets,
-            tool_vault=self.tool_vault
-        )
+    @property
+    def runtime(self) -> RuntimeContext:
+        return self._runtime
 
-        # Cognitive Orchestrator (handles caching and fallbacks)
-        self.llm_executor = LLMExecutor(registry=self.llm_registry)
+    @property
+    def kernel(self) -> ProtoKernel:
+        return self._runtime.kernel
 
-        # ══════════════════════════════════════════════════════════════════
-        # 3. ACTIVE INFRASTRUCTURE (Instances & Wiring)
-        # ══════════════════════════════════════════════════════════════════
-        self.event_bus = self.bus_registry.build("memory", {})
-        self.active_ledger = self.ledger_registry.build("memory", {"event_bus": self.event_bus})
-        self.state_store = self.store_registry.build("memory", {})
-        self.vault_store = MemoryVaultStore()
+    @property
+    def infrastructure(self):
+        return self._runtime.infrastructure
 
-        self.environment = SystemEnvironment(
-            state_store=self.state_store,
-            vault_store=self.vault_store,
-            event_bus=self.event_bus,
-            workspace_id=None
-        )
+    @property
+    def event_bus(self):
+        return self._runtime.infrastructure.event_bus
 
-        # ══════════════════════════════════════════════════════════════════
-        # 4. TOOL LAYER (Muscles)
-        # ══════════════════════════════════════════════════════════════════
-        self.local_tools = LocalPythonExecutor(environment=self.environment)
-        self.sub_agent_tools = SubAgentExecutor(environment=self.environment)
-        self.tool_router = ToolRouterExecutor(environment=self.environment)
+    @property
+    def active_ledger(self):
+        return self._runtime.infrastructure.ledger
 
-        self.sandbox_executor: SandboxExecutor | None = None
-        try:
-            self.sandbox_executor = SandboxExecutor(
-                provider=DockerProvider(),
-                environment=self.environment
-            )
-        except Exception:
-            logger.warning("⚠️ Docker unavailable. Sandbox tools disabled.")
+    @property
+    def environment(self):
+        return self._runtime.environment
 
-        # ══════════════════════════════════════════════════════════════════
-        # 5. KERNEL (Brain)
-        # ══════════════════════════════════════════════════════════════════
-        self.kernel = ProtoKernel(
-            repository=self.active_ledger,
-            llm_executor=self.llm_executor,
-            tool_executor=self.tool_router,
-            context_registry=self.context_registry,
-            bursar_registry=self.bursar_registry,
-            sentinel_registry=self.sentinel_registry,
-            human_gate_registry=self.human_gate_registry,
-            environment=self.environment,
-        )
+    @property
+    def tool_router(self):
+        return self._runtime.tool_router
 
-        self.sub_agent_tools.bind_kernel(self.kernel)
+    @property
+    def local_tools(self):
+        return self._runtime.local_executor
+
+    @property
+    def sub_agent_tools(self):
+        return self._runtime.sub_agent_executor
+
+    @property
+    def sandbox_executor(self):
+        return self._runtime.sandbox_executor
+
+    @property
+    def registries(self) -> RegistryContainer | None:
+        return self._registries
 
     # ══════════════════════════════════════════════════════════════════════
     # PUBLIC API (Developer Experience)
@@ -287,8 +237,9 @@ class Xulcan:
 
     def enable_sandbox(self) -> list[str]:
         """Activates Docker sandbox tools. Returns list of exposed tool names."""
-        if not self.sandbox_executor:
-            raise RuntimeError("Docker Sandbox not available on this machine.")
+        if not self._runtime.sandbox_executor:
+            logger.warning("⚠️ Sandbox executor not available. Sandbox tools are disabled.")
+            return []
 
         tools = [
             ToolDefinition(type="function", function=FunctionDef(
@@ -363,7 +314,7 @@ class Xulcan:
         if session_key:
             parent_id = await self.active_ledger.get_last_run_id(session_key)
 
-        actual_run_id, response = await self.kernel.execute_run(
+        actual_run_id, response = await self._runtime.kernel.execute_run(
             blueprint=blueprint,
             user_input=prompt,
             agent_id=agent_id,
@@ -393,12 +344,12 @@ class Xulcan:
     def subscribe_to_firehose(self, run_id: str) -> AsyncIterator[str]:
         """Returns an async iterator for real-time Firehose events."""
         channel = f"xulcan:firehose:{run_id}"
-        return self.event_bus.subscribe(channel)
+        return self._runtime.infrastructure.event_bus.subscribe(channel)
 
     def subscribe_to_ipc(self, run_id: str) -> AsyncIterator[str]:
         """Listens to internal communications and tool progress bars."""
         channel = f"xulcan:ipc:{run_id}"
-        return self.event_bus.subscribe(channel)
+        return self._runtime.environment.event_bus.subscribe(channel)
 
     # ══════════════════════════════════════════════════════════════════════
     # PRIVATE
@@ -407,12 +358,12 @@ class Xulcan:
     def _add_tool(self, definition: ToolDefinition, target: Any) -> None:
         """Low-level router. Use @tool, add_agent, or enable_sandbox instead."""
         if isinstance(target, AgentBlueprint):
-            self.sub_agent_tools.register_agent(definition, target)
-            self.tool_router.route_tool(definition.function.name, self.sub_agent_tools)
+            self._runtime.sub_agent_executor.register_agent(definition, target)
+            self._runtime.tool_router.route_tool(definition.function.name, self._runtime.sub_agent_executor)
         elif callable(target):
-            self.local_tools.register_function(definition, target)
-            self.tool_router.route_tool(definition.function.name, self.local_tools)
+            self._runtime.local_executor.register_function(definition, target)
+            self._runtime.tool_router.route_tool(definition.function.name, self._runtime.local_executor)
         elif target == "sandbox":
-            assert self.sandbox_executor is not None, "Sandbox executor is not initialized."
-            self.sandbox_executor.register_tool(definition)
-            self.tool_router.route_tool(definition.function.name, self.sandbox_executor)
+            assert self._runtime.sandbox_executor is not None, "Sandbox executor is not initialized."
+            self._runtime.sandbox_executor.register_tool(definition)
+            self._runtime.tool_router.route_tool(definition.function.name, self._runtime.sandbox_executor)

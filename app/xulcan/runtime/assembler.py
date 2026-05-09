@@ -13,7 +13,7 @@ from xulcan.runtime.llm_registry_adapter import RuntimeLLMRegistryAdapter
 from xulcan.registry.container import RegistryContainer
 
 from xulcan.kernel.environment import SystemEnvironment
-from xulcan.kernel.runtime import ProtoKernel
+from xulcan.kernel.orchestrator import ProtoKernel
 from xulcan.llm.executor import LLMExecutor
 
 from xulcan.tools.executors.local import LocalPythonExecutor
