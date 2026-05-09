@@ -26,7 +26,7 @@ from xulcan.logging_config import (
     get_logging_config,
 )
 
-from xulcan.kernel.runtime import ProtoKernel
+from xulcan.kernel.orchestrator import ProtoKernel
 from xulcan.blueprint.schema import AgentBlueprint
 from xulcan.protocol.message import UnifiedMessage
 from xulcan.protocol.io import UnifiedResponse, FinishReason
