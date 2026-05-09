@@ -30,7 +30,7 @@ from typing import Any, get_origin, get_args, AsyncIterator
 
 # ── System factories ──
 from xulcan.registry import RegistryContainer, bootstrap_registries
-from xulcan.system.loader import BlueprintLoader
+from xulcan.runtime.loaders import BlueprintLoader
 from xulcan.kernel.orchestrator import ProtoKernel
 from xulcan.runtime import ManifestResolver, RuntimeAssembler, RuntimeContext
 from xulcan.blueprint.schema import AgentBlueprint
