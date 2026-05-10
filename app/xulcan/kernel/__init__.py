@@ -16,15 +16,19 @@ Architecture:
     LLM provider, tool executor, or storage backend to be plugged in.
 
 Example:
-    >>> from xulcan.kernel import Orchestrator
-    >>> from xulcan.kernel.interfaces import LLMProvider, ToolExecutor
+    >>> from xulcan.kernel.orchestrator import ProtoKernel
+    >>> from xulcan.kernel.interfaces import LLMOrchestrator, ToolExecutor
     >>> 
-    >>> orchestrator = Orchestrator(
-    ...     llm_provider=my_llm,
+    >>> orchestrator = ProtoKernel(
+    ...     llm_executor=my_llm,
     ...     tool_executor=my_tools,
-    ...     ledger=my_ledger
+    ...     repository=my_ledger,
+    ...     context_registry=my_context_registry,
+    ...     bursar_registry=my_bursar_registry,
+    ...     sentinel_registry=my_sentinel_registry,
+    ...     human_gate_registry=my_human_gate_registry,
     ... )
-    >>> result = await orchestrator.run(blueprint, input="Hello")
+    >>> result = await orchestrator.execute_run(blueprint, input="Hello")
 """
 
 from .interfaces import (

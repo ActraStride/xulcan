@@ -137,4 +137,4 @@ class ToolSecretsVault:
 
 # CredentialProxy has been removed from Xulcan's public runtime model.
 # Runtime credential resolution now occurs during manifest materialization
-# in xulcan.runtime.resolver.ManifestResolver.
+# in xulcan.runtime.loaders.manifest_resolver.ManifestResolver.

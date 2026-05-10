@@ -17,7 +17,7 @@ logger = logging.getLogger("xulcan.runtime.loaders.blueprint_loader")
 CURRENT_SCHEMA_VERSION = "2.0"
 """Current blueprint schema version. Bump this when making breaking changes."""
 
-SUPPORTED_VERSIONS = {"1.0", "2.0"}
+SUPPORTED_VERSIONS = {"2.0"}
 """Schema versions accepted by this version of Xulcan."""
 
 
@@ -40,57 +40,22 @@ class BlueprintLoader:
         """Validates the blueprint schema version before Pydantic validation.
 
         Raises:
-            SchemaVersionError: If schema version is missing, unknown, or deprecated.
+            SchemaVersionError: If schema version is missing or unsupported.
         """
-        schema_version = data.get("xulcan_version") or data.get("schema_version")
+        schema_version = data.get("xulcan_version")
 
         if schema_version is None:
-            # No version specified — could be legacy YAML or new user mistake
-            has_legacy_fields = any(
-                field in data for field in [
-                    "model_provider",
-                    "model_params",
-                    "bursar_strategy",
-                    "sentinel_strategy",
-                    "human_gate_strategy",
-                ]
+            raise SchemaVersionError(
+                f"Blueprint '{data.get('id', 'unknown')}' is missing the required "
+                f"'xulcan_version: \"2.0\"' declaration. "
+                f"Supported versions: {sorted(SUPPORTED_VERSIONS)}."
             )
 
-            if has_legacy_fields:
-                raise SchemaVersionError(
-                    f"Blueprint '{data.get('id', 'unknown')}' is missing 'xulcan_version' "
-                    f"and appears to use the legacy (pre-refactor) schema format. "
-                    f"Please migrate to the new format:\n"
-                    f"  - 'model_provider' + 'model_params' → 'model: provider/model-name'\n"
-                    f"  - 'bursar_strategy' + 'sentinel_strategy' + 'human_gate_strategy' "
-                    f"→ 'governance: ...'\n"
-                    f"See https://docs.xulcan.io/migration/v2 for migration guide."
-                )
-            else:
-                # Has no version but also no legacy fields — assume v1 format
-                # that happens to not use the deprecated fields
-                logger.warning(
-                    f"Blueprint '{data.get('id', 'unknown')}' has no 'xulcan_version' "
-                    f"field. Assuming compatibility — this may fail with cryptic errors "
-                    f"if the schema format is incorrect."
-                )
-                return
-
-        # Version is specified — validate it
         if schema_version not in SUPPORTED_VERSIONS:
             raise SchemaVersionError(
                 f"Blueprint '{data.get('id', 'unknown')}' uses schema version "
                 f"'{schema_version}', which is not supported by this version of Xulcan.\n"
-                f"Supported versions: {sorted(SUPPORTED_VERSIONS)}.\n"
-                f"Please update your blueprint or upgrade Xulcan."
-            )
-
-        # Log deprecation warning for v1
-        if schema_version == "1.0":
-            logger.warning(
-                f"Blueprint '{data.get('id', 'unknown')}' uses schema version '1.0', "
-                f"which is deprecated. Please migrate to 'xulcan_version: 2.0'. "
-                f"See https://docs.xulcan.io/migration/v2"
+                f"Supported versions: {sorted(SUPPORTED_VERSIONS)}."
             )
 
     # =========================================================
