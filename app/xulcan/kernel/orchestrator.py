@@ -102,6 +102,28 @@ class ProtoKernel:
         self.human_gate_registry = human_gate_registry
         self.environment = environment
 
+    def _resolve_blueprint_namespace(self, blueprint: AgentBlueprint) -> str:
+        """Resolve the namespace for the blueprint based on its agent id."""
+        parts = blueprint.id.split('.')
+        namespace = '.'.join(parts[:-1]) if len(parts) > 1 else parts[0]
+        return namespace.replace('-', '_')
+
+    def _resolve_tool_names(self, blueprint: AgentBlueprint, tool_names: list[str]) -> list[str]:
+        """Resolve LLM-visible tool names using the blueprint's namespace."""
+        if not tool_names:
+            return []
+
+        blueprint_namespace = self._resolve_blueprint_namespace(blueprint)
+        resolved_tool_names: list[str] = []
+
+        for name in tool_names:
+            if "__" in name or "." in name:
+                resolved_tool_names.append(name)
+            else:
+                resolved_tool_names.append(f"{blueprint_namespace}__{name}")
+
+        return resolved_tool_names
+
     def _log(self, emoji: str, msg: str, **kwargs: Any) -> None:
         """Internal structured logging helper."""
         extra = f" | {json.dumps(kwargs, default=str)}" if kwargs else ""
@@ -338,16 +360,7 @@ class ProtoKernel:
                 elif current_state == KernelState.CALLING_MODEL:
                     tool_defs = None
                     if blueprint.llm_tools and hasattr(self.tool_executor, 'get_definitions'):
-                        # Resolve tool names: base names get prefixed with blueprint namespace
-                        resolved_tool_names = []
-                        blueprint_namespace = blueprint.id.replace("-", "_")
-                        for name in blueprint.llm_tools:
-                            if "__" in name:
-                                # Already qualified
-                                resolved_tool_names.append(name)
-                            else:
-                                # Resolve using blueprint's namespace
-                                resolved_tool_names.append(f"{blueprint_namespace}__{name}")
+                        resolved_tool_names = self._resolve_tool_names(blueprint, blueprint.llm_tools)
                         tool_defs = self.tool_executor.get_definitions(resolved_tool_names)
 
                     await self.repo.append(ModelRequest(
@@ -452,7 +465,7 @@ class ProtoKernel:
                     # Resolve tool name for config lookup
                     # tool_call_to_check.name is in LLM format (e.g., "chat__save_message")
                     # blueprint.tools contains names as in YAML (e.g., "save_message" or "quotations__run")
-                    blueprint_namespace = blueprint.id.replace("-", "_")
+                    blueprint_namespace = self._resolve_blueprint_namespace(blueprint)
                     llm_name = tool_call_to_check.name
                     
                     if llm_name.startswith(f"{blueprint_namespace}__"):

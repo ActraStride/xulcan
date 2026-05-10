@@ -73,6 +73,10 @@ class ToolRouterExecutor(BaseToolExecutor):
 
     def route_tool(self, route_key: str, llm_name: str, executor: BaseToolExecutor) -> None:
         """Bind a specific tool name to a specific execution adapter."""
+        if route_key in self._routing_table:
+            raise ValueError(f"Tool route '{route_key}' is already registered.")
+        if llm_name in self._llm_name_index:
+            raise ValueError(f"LLM tool name '{llm_name}' is already registered.")
         self._routing_table[route_key] = executor
         self._llm_name_index[llm_name] = route_key
         logger.debug(f"🔀 Route mapped: '{route_key}' (LLM: '{llm_name}') -> {executor.__class__.__name__}")

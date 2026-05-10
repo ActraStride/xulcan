@@ -30,7 +30,7 @@ from typing import Any, get_origin, get_args, AsyncIterator
 
 # ── System factories ──
 from xulcan.registry import RegistryContainer, bootstrap_registries
-from xulcan.runtime.loaders import BlueprintLoader
+from xulcan.runtime.loaders import AppDiscoveryEngine, BlueprintLoader
 from xulcan.kernel.orchestrator import ProtoKernel
 from xulcan.runtime import ManifestResolver, RuntimeAssembler, RuntimeContext
 from xulcan.blueprint.schema import AgentBlueprint
@@ -64,6 +64,13 @@ class Xulcan:
 
         instance = cls(runtime)
         instance._registries = container
+
+        # ── Autodiscover apps from the manifest if configured ────────────
+        app_paths = infrastructure.manifest.apps if hasattr(infrastructure.manifest, 'apps') else []
+        if app_paths:
+            manifest_dir = os.path.dirname(os.path.abspath(manifest_path))
+            discovery_engine = AppDiscoveryEngine(instance)
+            await discovery_engine.discover_all(app_paths, base_dir=manifest_dir)
 
         # ── Autoload blueprints si el manifest lo indica ──────────────────
         bp_config = runtime.infrastructure.manifest.blueprints
@@ -135,7 +142,12 @@ class Xulcan:
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        yaml_files = glob.glob(f"{directory}/*.yaml") + glob.glob(f"{directory}/*.yml")
+        yaml_files = (
+            glob.glob(f"{directory}/*.yaml")
+            + glob.glob(f"{directory}/*.yml")
+            + glob.glob(f"{directory}/*.xul.yml")
+            + glob.glob(f"{directory}/*.xul.yaml")
+        )
         for file_path in yaml_files:
             try:
                 bp = BlueprintLoader.from_file(file_path)
