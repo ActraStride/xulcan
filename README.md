@@ -1,117 +1,148 @@
 # Xulcan
-
-<p align="center">
-    <a href="README.md">English 🇬🇧</a>
-    · <a href="docs/README.es.md">Spanish 🇲🇽</a>
-</p>
-
-**The Deterministic Operating System for AI Agents.**
-
-Xulcan is a strict, type-safe **Agentic Operating System (Agentic OS)** designed from the ground up for engineering and production environments. Based on the principles of Domain-Driven Design (DDD) and Cybernetics, it treats Agents as Data, History as an Immutable Ledger, and Execution as a deterministic state machine.
+Sistema operativo agéntico determinista para construir, ejecutar y auditar agentes de IA con arquitectura tipada, Event Sourcing y gobernanza explícita.
 
 [![License](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
-[![Architecture](https://img.shields.io/badge/Architecture-Event%20Sourced-purple.svg)]()
-[![Core](https://img.shields.io/badge/Core-Frozen%20v1.0-green.svg)]()
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
----
+## Qué es Xulcan
+Xulcan separa claramente:
+- **Ontología del agente** (qué es y cómo piensa): `blueprint/`, `protocol/`, `core/`
+- **Infraestructura** (dónde corre): `manifest/`, `registry/`, `runtime/`
+- **Ejecución** (cómo se comporta): `kernel/`, `tools/`, `governance/`, `history/`, `signals/`
 
-## The Concept: The Agentic OS 🖥️
+Resultado: agentes portables (YAML), ejecución determinista (FSM) y trazabilidad completa (ledger append-only).
 
-Understanding Xulcan is easy if you map it to classical computer architecture (Von Neumann). We separate the chaos of LLMs from the strictness of software engineering:
+## Pipeline real de arranque
+Flujo de composición actual:
+1. `Xulcan.from_manifest(...)` en `app/xulcan/app.py`
+2. `RegistryContainer` + `bootstrap_registries(...)` en `app/xulcan/registry/`
+3. `ManifestResolver` (Stage 1) materializa infraestructura desde `infraprint.yml`
+4. `RuntimeAssembler` (Stage 2) ensambla `SystemEnvironment`, ejecutores y `ProtoKernel`
+5. `RuntimeContext` expone el grafo final de ejecución
+6. La fachada `Xulcan` habilita API de DX (`@tool`, `add_agent`, `enable_sandbox`, `run`, `get_audit`)
 
-| OS Module | The AI Equivalent | Description |
-| :--- | :--- | :--- |
-| **CPU (ALU)** | **LLM Adapters** | The models (Gemini, Ollama). They are stateless, isolated, and only process semantics to output intentions (`ToolCalls`). |
-| **Kernel / FSM** | **ProtoKernel** | The execution loop. It manages token budgets, mitigates entropy, handles errors safely, and orchestrates the state machine. |
-| **RAM (Memory)** | **StateStore / Blackboard** | Ephemeral shared memory. Allows passing huge payloads (like APIs or PDFs) by reference instead of burning LLM tokens. |
-| **Peripherals** | **Sandbox / Network** | The "Hands". Sandboxed Docker containers and network executors that safely interact with the real world. |
-| **Hard Drive** | **The Ledger** | An immutable, append-only Event Sourcing log of every thought and action. Enables forensic auditability. |
+## Ontología del framework
+### `core/`
+Primitivas inmutables y semánticas (`ImmutableRecord`, `MachineID`, `SemanticText`, etc.) para validación estricta y fronteras de seguridad.
 
----
+### `manifest/`
+Schema de infraestructura (`InfraprintManifest`): kernel infra (ledger/event_bus/state_store/vault), proveedores LLM e instrucciones de blueprints.
 
-## Infrastructure as Code (IaC) for Agents 📜
+### `blueprint/`
+DNA del agente (`AgentBlueprint`):
+- identidad (`id`, `name`, `version`)
+- cognición (`model`, `fallbacks`, `system_prompt`, `context`)
+- capacidades (`tools`, `lifecycle`)
+- gobernanza de presupuesto (`governance.budget`)
 
-Xulcan separates the **Software Engineering** from the **Prompt Engineering**. Agents are not hardcoded in Python; they are defined in YAML manifests.
+### `protocol/`
+Contrato conversacional y de herramientas:
+- mensajes tipados (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolMessage`)
+- tool calling seguro (`ToolCall`, `ToolDefinition`, `FunctionDef`)
 
-```yaml
-# manifests/analyst_agent.yaml
-name: "Financial Analyst"
-model_provider: "google"
-model_name: "gemini-2.5-flash"
-system_prompt: "You are an expert analyst. Use your sandbox to calculate..."
-tools:
-  - name: "network_api_get"
-    enabled: true
-  - name: "sandbox_run_bash"
-    enabled: true
-```
-*Just load the manifest and let the OS handle the rest.*
+### `signals/`
+Señales para bus de eventos:
+- `BroadcastEvent` (1→N, kernel→mundo)
+- `IPCMessage` (1→1, dirigido por canal)
 
----
+### `history/`
+Ledger de eventos inmutable:
+- ciclo de vida (`RunCreated`, `RunCompleted`, `RunFailed`)
+- inferencia (`ModelRequest`, `ModelResponse`, `ModelFallback`)
+- herramientas (`ToolExecution`, `ToolOutput`)
+- gobernanza (`PolicyViolation`, `HumanInterventionRequired`, `HumanInterventionResult`)
 
-## Quick Start
+## Ejecución: Kernel + FSM
+`ProtoKernel` (`app/xulcan/kernel/orchestrator.py`) conduce el bucle determinista.
+Estados clave (`app/xulcan/kernel/states.py`):
+- hidratación: `CREATED -> HYDRATING -> HYDRATED`
+- control: `CHECKING_BUDGET`, `PREPARING_CONTEXT`, `COMPACTING_CONTEXT`
+- inferencia: `CALLING_MODEL`, `PROCESSING_RESPONSE`
+- herramientas: `PARSING_TOOL_ARGS`, `CHECKING_POLICY`, `EXECUTING_TOOL`
+- suspensión: `SUSPENDED` (espera recuperación externa)
+- resiliencia: `RETRYING`, `HANDLING_ERROR`
+- terminales: `COMPLETED`, `FAILED`
 
-### Prerequisites
-- Docker & Docker Compose
-- Make (Linux/Mac/WSL2)
-- Python 3.11+
+Guardrails efectivos:
+- `MAX_LOOPS` anti-loop infinito
+- reintentos con backoff para fallas transitorias
+- limpieza de `StateStore` al finalizar
+- fallback entre proveedores/modelos
 
-### Option A: Standalone Usage (Python Script)
-Perfect for testing and running agents locally.
+## Runtime, memoria y herramientas
+- `runtime/`: separación Stage 1 (resolver infra) y Stage 2 (ensamblar runtime ejecutable)
+- `memory/state`: blackboard efímero por `run_id`
+- `memory/vault`: secretos fuera de prompts/blueprints
+- `tools/router`: enrutamiento por nombre + resolución de plantillas Jinja con memoria
+- `tools/executors`: local, subagentes y sandbox (Docker opcional)
+
+## Gobernanza
+Componentes:
+- **Bursar**: presupuesto (`approved`, `warn`, `halt`)
+- **Sentinel**: política de tools (`approved`, `blocked`, `escalate`)
+- **HumanGate**: decisión humana (`approved`, `rejected`)
+
+Los registros de estrategias se cargan en `registry/bootstrap.py` y se construyen vía `ProviderRegistry`.
+
+## API HTTP principal (`mack.py`)
+Entrypoint operativo: `app/xulcan/mack.py`
+
+Endpoints principales:
+- `GET /health/live`
+- `GET /health/ready`
+- `GET /v1/blueprints`
+- `POST /v1/blueprints/reload`
+- `POST /v1/agent/run`
+- `GET /v1/runs/{run_id}/stream` (SSE firehose)
+- `GET /v1/runs/{run_id}/audit`
+- `POST /v1/runs/{run_id}/human-response`
+
+## Configuración mínima (`infraprint.yml`)
+Ejemplo base del repositorio:
+- `kernel.*.driver: "memory"` para ledger, state_store, event_bus, vault
+- `providers.llm.instances`: `google`, `github`
+- `blueprints.paths`: `./blueprints`
+- `blueprints.autoload: true`
+
+## Inicio rápido
+### Prerrequisitos
+- Python 3.10+
+- Docker + Docker Compose
+- Make
+
+### Desarrollo local
 ```bash
-# 1. Clone & Install
-git clone https://github.com/ActraStride/xulcan.git
-cd xulcan
 pip install -e .
-
-# 2. Run the demo agent
-python demo.py
-```
-
-### Option B: Server Deployment (FastAPI)
-Launch the full Nivel 2 B2B infrastructure with Postgres and Redis.
-```bash
-# Start the Xulcan API and Databases
 make dev
+```
 
-# Verify the OS is alive
+### Verificación
+```bash
 curl http://localhost:8000/health/live
+curl http://localhost:8000/health/ready
 ```
 
----
+### Pruebas
+```bash
+make test
+make fuzz
+make test-all
+```
 
-## Project Structure
-
-The codebase strictly follows Hexagonal Architecture. Upper levels depend on lower levels, never the reverse.
-
+## Estructura de proyecto (resumen)
 ```text
-xulcan/
-├── app/
-│   ├── xulcan/
-│   │   ├── core/          # Level 0: Primitives & Economics
-│   │   ├── protocol/      # Level 1: Messages & Tools Schemas
-│   │   ├── blueprint/     # Level 1: YAML Loaders & Agent Naming
-│   │   ├── ledger/        # Level 2: Event Sourcing & Auditability
-│   │   ├── memory/        # Level 2: StateStore (Blackboard)
-│   │   ├── llm/           # Level 3: Stateless Adapters (Gemini, Ollama)
-│   │   ├── tools/         # Level 3: Executors (Docker Sandbox, Network)
-│   │   └── kernel/        # Level 3: The FSM Runtime Engine
-│   └── main.py            # FastAPI Entrypoint (Wrapper)
-├── manifests/             # 📜 IaC Agent Definitions (YAML)
-├── demo.py                # Standalone Client Example
-├── tests/                 # Pytest suite
-├── docker-compose.yaml
-└── Makefile
+app/xulcan/
+├── app.py          # Fachada pública Xulcan
+├── mack.py         # API FastAPI operativa
+├── runtime/        # Resolver + Assembler + RuntimeContext
+├── registry/       # Container + bootstrap de adapters/strategies
+├── kernel/         # FSM, orquestador, entorno e interfaces
+├── blueprint/      # Esquema y componentes del agente
+├── manifest/       # Esquema infraprint (infra declarativa)
+├── protocol/       # Mensajes y contrato de herramientas
+├── signals/        # Señales de bus (broadcast/ipc)
+├── history/        # Eventos de ejecución (ledger)
+├── tools/          # Router y ejecutores
+├── memory/         # state (blackboard) + vault (secretos)
+└── governance/     # bursar, sentinel, human gate
 ```
-
----
-
-## Why Xulcan?
-
-1.  **Strict Entropy Control:** The LLM does not dictate the flow. The Kernel's Finite State Machine (FSM) traps errors, prevents infinite loops, and forces determinism.
-2.  **True Physical Isolation:** Code generated by the agent is executed in ephemeral, lazy-loaded Docker containers (`SandboxExecutor`) with zero risk to the host machine.
-3.  **Forensic Auditability:** The `Ledger` records every token, latency, and tool execution. You never wonder "Why did the agent do that?". You have the mathematical proof.
-4.  **Fractal Swarms:** Agents can invoke other Blueprints as tools (`SubAgentExecutor`), creating hierarchical teams natively.
-
-***
