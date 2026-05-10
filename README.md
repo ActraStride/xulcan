@@ -1,93 +1,93 @@
 # Xulcan
-Sistema operativo agéntico determinista para construir, ejecutar y auditar agentes de IA con arquitectura tipada, Event Sourcing y gobernanza explícita.
+Deterministic agentic operating system for building, executing, and auditing AI agents with typed architecture, Event Sourcing, and explicit governance.
 
 [![License](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-## Qué es Xulcan
-Xulcan separa claramente:
-- **Ontología del agente** (qué es y cómo piensa): `blueprint/`, `protocol/`, `core/`
-- **Infraestructura** (dónde corre): `manifest/`, `registry/`, `runtime/`
-- **Ejecución** (cómo se comporta): `kernel/`, `tools/`, `governance/`, `history/`, `signals/`
+## What is Xulcan
+Xulcan clearly decouples:
+- **Agent Ontology** (what it is and how it thinks): `blueprint/`, `protocol/`, `core/`
+- **Infrastructure** (where it runs): `manifest/`, `registry/`, `runtime/`
+- **Execution** (how it behaves): `kernel/`, `tools/`, `governance/`, `history/`, `signals/`
 
-Resultado: agentes portables (YAML), ejecución determinista (FSM) y trazabilidad completa (ledger append-only).
+Result: Portable agents (YAML), deterministic execution (FSM), and full traceability (append-only ledger).
 
-## Pipeline real de arranque
-Flujo de composición actual:
-1. `Xulcan.from_manifest(...)` en `app/xulcan/app.py`
-2. `RegistryContainer` + `bootstrap_registries(...)` en `app/xulcan/registry/`
-3. `ManifestResolver` (Stage 1) materializa infraestructura desde `infraprint.yml`
-4. `RuntimeAssembler` (Stage 2) ensambla `SystemEnvironment`, ejecutores y `ProtoKernel`
-5. `RuntimeContext` expone el grafo final de ejecución
-6. La fachada `Xulcan` habilita API de DX (`@tool`, `add_agent`, `enable_sandbox`, `run`, `get_audit`)
+## Startup Pipeline
+Current composition flow:
+1. `Xulcan.from_manifest(...)` in `app/xulcan/app.py`
+2. `RegistryContainer` + `bootstrap_registries(...)` in `app/xulcan/registry/`
+3. `ManifestResolver` (Stage 1) materializes infrastructure from `infraprint.yml`
+4. `RuntimeAssembler` (Stage 2) assembles the `SystemEnvironment`, executors, and `ProtoKernel`
+5. `RuntimeContext` exposes the final execution graph
+6. The `Xulcan` facade enables the DX API (`@tool`, `add_agent`, `enable_sandbox`, `run`, `get_audit`)
 
-## Ontología del framework
+## Framework Ontology
 ### `core/`
-Primitivas inmutables y semánticas (`ImmutableRecord`, `MachineID`, `SemanticText`, etc.) para validación estricta y fronteras de seguridad.
+Immutable and semantic primitives (`ImmutableRecord`, `MachineID`, `SemanticText`, etc.) for strict validation and security boundaries.
 
 ### `manifest/`
-Schema de infraestructura (`InfraprintManifest`): kernel infra (ledger/event_bus/state_store/vault), proveedores LLM e instrucciones de blueprints.
+Infrastructure schema (`InfraprintManifest`): kernel infra (ledger/event_bus/state_store/vault), LLM providers, and blueprint instructions.
 
 ### `blueprint/`
-DNA del agente (`AgentBlueprint`):
-- identidad (`id`, `name`, `version`)
-- cognición (`model`, `fallbacks`, `system_prompt`, `context`)
-- capacidades (`tools`, `lifecycle`)
-- gobernanza de presupuesto (`governance.budget`)
+Agent DNA (`AgentBlueprint`):
+- Identity (`id`, `name`, `version`)
+- Cognition (`model`, `fallbacks`, `system_prompt`, `context`)
+- Capabilities (`tools`, `lifecycle`)
+- Budget Governance (`governance.budget`)
 
 ### `protocol/`
-Contrato conversacional y de herramientas:
-- mensajes tipados (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolMessage`)
-- tool calling seguro (`ToolCall`, `ToolDefinition`, `FunctionDef`)
+Conversational and tool contracts:
+- Typed messages (`SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolMessage`)
+- Secure tool calling (`ToolCall`, `ToolDefinition`, `FunctionDef`)
 
 ### `signals/`
-Señales para bus de eventos:
-- `BroadcastEvent` (1→N, kernel→mundo)
-- `IPCMessage` (1→1, dirigido por canal)
+Signals for the event bus:
+- `BroadcastEvent` (1→N, kernel→world)
+- `IPCMessage` (1→1, channel-directed)
 
 ### `history/`
-Ledger de eventos inmutable:
-- ciclo de vida (`RunCreated`, `RunCompleted`, `RunFailed`)
-- inferencia (`ModelRequest`, `ModelResponse`, `ModelFallback`)
-- herramientas (`ToolExecution`, `ToolOutput`)
-- gobernanza (`PolicyViolation`, `HumanInterventionRequired`, `HumanInterventionResult`)
+Immutable event ledger:
+- Lifecycle (`RunCreated`, `RunCompleted`, `RunFailed`)
+- Inference (`ModelRequest`, `ModelResponse`, `ModelFallback`)
+- Tools (`ToolExecution`, `ToolOutput`)
+- Governance (`PolicyViolation`, `HumanInterventionRequired`, `HumanInterventionResult`)
 
-## Ejecución: Kernel + FSM
-`ProtoKernel` (`app/xulcan/kernel/orchestrator.py`) conduce el bucle determinista.
-Estados clave (`app/xulcan/kernel/states.py`):
-- hidratación: `CREATED -> HYDRATING -> HYDRATED`
-- control: `CHECKING_BUDGET`, `PREPARING_CONTEXT`, `COMPACTING_CONTEXT`
-- inferencia: `CALLING_MODEL`, `PROCESSING_RESPONSE`
-- herramientas: `PARSING_TOOL_ARGS`, `CHECKING_POLICY`, `EXECUTING_TOOL`
-- suspensión: `SUSPENDED` (espera recuperación externa)
-- resiliencia: `RETRYING`, `HANDLING_ERROR`
-- terminales: `COMPLETED`, `FAILED`
+## Execution: Kernel + FSM
+`ProtoKernel` (`app/xulcan/kernel/orchestrator.py`) drives the deterministic loop.
+Key states (`app/xulcan/kernel/states.py`):
+- Hydration: `CREATED -> HYDRATING -> HYDRATED`
+- Control: `CHECKING_BUDGET`, `PREPARING_CONTEXT`, `COMPACTING_CONTEXT`
+- Inference: `CALLING_MODEL`, `PROCESSING_RESPONSE`
+- Tools: `PARSING_TOOL_ARGS`, `CHECKING_POLICY`, `EXECUTING_TOOL`
+- Suspension: `SUSPENDED` (waits for external recovery)
+- Resilience: `RETRYING`, `HANDLING_ERROR`
+- Terminal: `COMPLETED`, `FAILED`
 
-Guardrails efectivos:
-- `MAX_LOOPS` anti-loop infinito
-- reintentos con backoff para fallas transitorias
-- limpieza de `StateStore` al finalizar
-- fallback entre proveedores/modelos
+Effective Guardrails:
+- `MAX_LOOPS` to prevent infinite loops
+- Retries with backoff for transient failures
+- `StateStore` cleanup upon completion
+- Fallback mechanisms between providers/models
 
-## Runtime, memoria y herramientas
-- `runtime/`: separación Stage 1 (resolver infra) y Stage 2 (ensamblar runtime ejecutable)
-- `memory/state`: blackboard efímero por `run_id`
-- `memory/vault`: secretos fuera de prompts/blueprints
-- `tools/router`: enrutamiento por nombre + resolución de plantillas Jinja con memoria
-- `tools/executors`: local, subagentes y sandbox (Docker opcional)
+## Runtime, Memory, and Tools
+- `runtime/`: Separation of Stage 1 (infra resolver) and Stage 2 (executable runtime assembly)
+- `memory/state`: Ephemeral blackboard per `run_id`
+- `memory/vault`: Secrets kept outside of prompts/blueprints
+- `tools/router`: Routing by name + Jinja template resolution with memory
+- `tools/executors`: Local, sub-agents, and sandbox (Docker optional)
 
-## Gobernanza
-Componentes:
-- **Bursar**: presupuesto (`approved`, `warn`, `halt`)
-- **Sentinel**: política de tools (`approved`, `blocked`, `escalate`)
-- **HumanGate**: decisión humana (`approved`, `rejected`)
+## Governance
+Components:
+- **Bursar**: Budgeting (`approved`, `warn`, `halt`)
+- **Sentinel**: Tool policy (`approved`, `blocked`, `escalate`)
+- **HumanGate**: Human decision-making (`approved`, `rejected`)
 
-Los registros de estrategias se cargan en `registry/bootstrap.py` y se construyen vía `ProviderRegistry`.
+Strategy registries are loaded in `registry/bootstrap.py` and built via `ProviderRegistry`.
 
-## API HTTP principal (`mack.py`)
-Entrypoint operativo: `app/xulcan/mack.py`
+## Main HTTP API (`mack.py`)
+Operational entry point: `app/xulcan/mack.py`
 
-Endpoints principales:
+Main endpoints:
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /v1/blueprints`
@@ -97,52 +97,52 @@ Endpoints principales:
 - `GET /v1/runs/{run_id}/audit`
 - `POST /v1/runs/{run_id}/human-response`
 
-## Configuración mínima (`infraprint.yml`)
-Ejemplo base del repositorio:
-- `kernel.*.driver: "memory"` para ledger, state_store, event_bus, vault
+## Minimal Configuration (`infraprint.yml`)
+Base repository example:
+- `kernel.*.driver: "memory"` for ledger, state_store, event_bus, and vault
 - `providers.llm.instances`: `google`, `github`
 - `blueprints.paths`: `./blueprints`
 - `blueprints.autoload: true`
 
-## Inicio rápido
-### Prerrequisitos
+## Quick Start
+### Prerequisites
 - Python 3.10+
 - Docker + Docker Compose
 - Make
 
-### Desarrollo local
+### Local Development
 ```bash
 pip install -e .
 make dev
 ```
 
-### Verificación
+### Verification
 ```bash
 curl http://localhost:8000/health/live
 curl http://localhost:8000/health/ready
 ```
 
-### Pruebas
+### Testing
 ```bash
 make test
 make fuzz
 make test-all
 ```
 
-## Estructura de proyecto (resumen)
+## Project Structure (Summary)
 ```text
 app/xulcan/
-├── app.py          # Fachada pública Xulcan
-├── mack.py         # API FastAPI operativa
+├── app.py          # Xulcan public facade
+├── mack.py         # Operational FastAPI API
 ├── runtime/        # Resolver + Assembler + RuntimeContext
-├── registry/       # Container + bootstrap de adapters/strategies
-├── kernel/         # FSM, orquestador, entorno e interfaces
-├── blueprint/      # Esquema y componentes del agente
-├── manifest/       # Esquema infraprint (infra declarativa)
-├── protocol/       # Mensajes y contrato de herramientas
-├── signals/        # Señales de bus (broadcast/ipc)
-├── history/        # Eventos de ejecución (ledger)
-├── tools/          # Router y ejecutores
-├── memory/         # state (blackboard) + vault (secretos)
+├── registry/       # Container + bootstrap for adapters/strategies
+├── kernel/         # FSM, orchestrator, environment, and interfaces
+├── blueprint/      # Agent schema and components
+├── manifest/       # Infraprint schema (declarative infra)
+├── protocol/       # Messages and tool contracts
+├── signals/        # Bus signals (broadcast/ipc)
+├── history/        # Execution events (ledger)
+├── tools/          # Router and executors
+├── memory/         # state (blackboard) + vault (secrets)
 └── governance/     # bursar, sentinel, human gate
 ```
