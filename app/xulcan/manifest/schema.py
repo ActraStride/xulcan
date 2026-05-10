@@ -59,3 +59,4 @@ class InfraprintManifest(ImmutableRecord):
     kernel: KernelConfig = Field(default_factory=KernelConfig)
     providers: ProvidersConfig
     blueprints: BlueprintsConfig = Field(default_factory=BlueprintsConfig)
+    apps: list[str] = Field(default_factory=list)
