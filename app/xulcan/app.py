@@ -162,7 +162,8 @@ class Xulcan:
         _func: Callable[..., Any] | None = None,
         *,
         name: str | None = None,
-        description: str | None = None
+        description: str | None = None,
+        namespace: str | None = None
     ) -> Callable[..., Any]:
         """Decorator: converts Python functions into agentic tools."""
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -216,7 +217,7 @@ class Xulcan:
                     parameters={"type": "object", "properties": properties, "required": required}
                 )
             )
-            self._add_tool(definition, func)
+            self._add_tool(definition, func, namespace)
 
             @functools.wraps(func)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -228,9 +229,11 @@ class Xulcan:
             return decorator
         return decorator(_func)
 
-    def add_agent(self, blueprint: AgentBlueprint, description: str) -> str:
+    def add_agent(self, blueprint: AgentBlueprint, description: str, namespace: str | None = None) -> str:
         """Register a sub-agent as a tool. Returns the tool name."""
-        tool_name = blueprint.id.replace("-", "_")
+        # Use blueprint ID (sanitizing dashes to underscores) as default namespace
+        effective_namespace = namespace or blueprint.id.replace("-", "_")
+        tool_name = "run"  # Canonical base name for sub-agents
         definition = ToolDefinition(
             type="function",
             function=FunctionDef(
@@ -246,8 +249,8 @@ class Xulcan:
                 }
             )
         )
-        self._add_tool(definition, blueprint)
-        return tool_name
+        self._add_tool(definition, blueprint, effective_namespace)
+        return f"{effective_namespace}__{tool_name}"
 
     def enable_sandbox(self) -> list[str]:
         """Activates Docker sandbox tools. Returns list of exposed tool names."""
@@ -283,7 +286,7 @@ class Xulcan:
             )),
         ]
         for t in tools:
-            self._add_tool(t, "sandbox")
+            self._add_tool(t, "sandbox", None)
         return [t.function.name for t in tools]
 
     def enable_stdlib(self, modules: list[str] | str = "all") -> list[str]:
@@ -369,15 +372,28 @@ class Xulcan:
     # PRIVATE
     # ══════════════════════════════════════════════════════════════════════
 
-    def _add_tool(self, definition: ToolDefinition, target: Any) -> None:
+    def _add_tool(self, definition: ToolDefinition, target: Any, namespace: str | None = None) -> None:
         """Low-level router. Use @tool, add_agent, or enable_sandbox instead."""
+        base_name = definition.function.name
+
+        if namespace:
+            route_key = f"{namespace}.{base_name}"
+            llm_name = f"{namespace}__{base_name}"
+            # Update the ToolDefinition with the sanitized name for the LLM
+            definition = definition.model_copy(
+                update={"function": definition.function.model_copy(update={"name": llm_name})}
+            )
+        else:
+            route_key = base_name
+            llm_name = base_name
+
         if isinstance(target, AgentBlueprint):
             self._runtime.sub_agent_executor.register_agent(definition, target)
-            self._runtime.tool_router.route_tool(definition.function.name, self._runtime.sub_agent_executor)
+            self._runtime.tool_router.route_tool(route_key, llm_name, self._runtime.sub_agent_executor)
         elif callable(target):
             self._runtime.local_executor.register_function(definition, target)
-            self._runtime.tool_router.route_tool(definition.function.name, self._runtime.local_executor)
+            self._runtime.tool_router.route_tool(route_key, llm_name, self._runtime.local_executor)
         elif target == "sandbox":
             assert self._runtime.sandbox_executor is not None, "Sandbox executor is not initialized."
             self._runtime.sandbox_executor.register_tool(definition)
-            self._runtime.tool_router.route_tool(definition.function.name, self._runtime.sandbox_executor)
+            self._runtime.tool_router.route_tool(route_key, llm_name, self._runtime.sandbox_executor)

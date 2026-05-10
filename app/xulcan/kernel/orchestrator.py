@@ -338,7 +338,17 @@ class ProtoKernel:
                 elif current_state == KernelState.CALLING_MODEL:
                     tool_defs = None
                     if blueprint.llm_tools and hasattr(self.tool_executor, 'get_definitions'):
-                        tool_defs = self.tool_executor.get_definitions(blueprint.llm_tools)
+                        # Resolve tool names: base names get prefixed with blueprint namespace
+                        resolved_tool_names = []
+                        blueprint_namespace = blueprint.id.replace("-", "_")
+                        for name in blueprint.llm_tools:
+                            if "__" in name:
+                                # Already qualified
+                                resolved_tool_names.append(name)
+                            else:
+                                # Resolve using blueprint's namespace
+                                resolved_tool_names.append(f"{blueprint_namespace}__{name}")
+                        tool_defs = self.tool_executor.get_definitions(resolved_tool_names)
 
                     await self.repo.append(ModelRequest(
                         run_id=run_id,
@@ -438,10 +448,26 @@ class ProtoKernel:
 
                     # Get tool config for this specific tool
                     tool_call_to_check = last_msg.tool_calls[0]
-                    tool_config = next(
-                        (t for t in blueprint.tools if t.name == tool_call_to_check.name),
-                        None
-                    )
+                    
+                    # Resolve tool name for config lookup
+                    # tool_call_to_check.name is in LLM format (e.g., "chat__save_message")
+                    # blueprint.tools contains names as in YAML (e.g., "save_message" or "quotations__run")
+                    blueprint_namespace = blueprint.id.replace("-", "_")
+                    llm_name = tool_call_to_check.name
+                    
+                    if llm_name.startswith(f"{blueprint_namespace}__"):
+                        # Same namespace: extract base name
+                        base_name = llm_name[len(f"{blueprint_namespace}__"):]
+                        tool_config = next(
+                            (t for t in blueprint.tools if t.name == base_name),
+                            None
+                        )
+                    else:
+                        # Cross-namespace or exact match
+                        tool_config = next(
+                            (t for t in blueprint.tools if t.name == llm_name),
+                            None
+                        )
 
                     # Build governance strategies for this specific tool
                     sentinel_strategy = (

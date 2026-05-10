@@ -30,7 +30,8 @@ class ToolRouterExecutor(BaseToolExecutor):
     
     def __init__(self, environment: SystemEnvironment | None = None) -> None:
         self.environment = environment
-        self._routing_table: dict[str, BaseToolExecutor] = {}
+        self._routing_table: dict[str, BaseToolExecutor] = {}  # "chat.save" → executor
+        self._llm_name_index: dict[str, str] = {}              # "chat__save" → "chat.save"
 
     def get_definitions(self, tool_names: list[str]) -> list[ToolDefinition]:
         """Returns the JSON schemas for the requested tools.
@@ -40,8 +41,10 @@ class ToolRouterExecutor(BaseToolExecutor):
         """
         definitions =[]
         for name in tool_names:
-            if name in self._routing_table:
-                executor = self._routing_table[name]
+            # Resolve LLM name to route key
+            route_key = self._llm_name_index.get(name, name)
+            if route_key in self._routing_table:
+                executor = self._routing_table[route_key]
                 
                 # Check if the executor can return a definition dynamically
                 # (Used by executors that handle multiple tools, like Sandbox)
@@ -62,16 +65,17 @@ class ToolRouterExecutor(BaseToolExecutor):
                         f"⚠️ Tool '{name}' has no definition logic in its executor."
                     )
             else:
-                logger.warning(
-                    f"⚠️ Tool '{name}' requested by Blueprint but not routed in the Registry."
+                raise ValueError(
+                    f"Tool '{name}' requested by Blueprint but not routed in the Registry."
                 )
                 
         return definitions
 
-    def route_tool(self, tool_name: str, executor: BaseToolExecutor) -> None:
+    def route_tool(self, route_key: str, llm_name: str, executor: BaseToolExecutor) -> None:
         """Bind a specific tool name to a specific execution adapter."""
-        self._routing_table[tool_name] = executor
-        logger.debug(f"🔀 Route mapped: '{tool_name}' -> {executor.__class__.__name__}")
+        self._routing_table[route_key] = executor
+        self._llm_name_index[llm_name] = route_key
+        logger.debug(f"🔀 Route mapped: '{route_key}' (LLM: '{llm_name}') -> {executor.__class__.__name__}")
 
     async def execute(self, call: ToolCall) -> ToolMessage:
         """Executes the tool call by routing it to the registered executor.
@@ -79,15 +83,17 @@ class ToolRouterExecutor(BaseToolExecutor):
         Intercepts the arguments before execution to resolve Jinja2 templates
         against the agent's StateStore memory.
         """
-        if call.name not in self._routing_table:
+        # Resolve LLM name (e.g., chat__save) to Route Key (e.g., chat.save)
+        route_key = self._llm_name_index.get(call.name, call.name)
+        executor = self._routing_table.get(route_key)
+        
+        if not executor:
             error_payload = json.dumps({"error": f"Tool '{call.name}' not found in registry."})
             return ToolMessage(
                 tool_call_id=call.id, 
                 name=call.name, 
                 content=error_payload
             )
-            
-        executor = self._routing_table[call.name]
         
         try:
             # =================================================================
