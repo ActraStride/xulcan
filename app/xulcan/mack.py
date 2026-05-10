@@ -43,11 +43,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         
         # 1. MATERIALIZACIÓN Y ENSAMBLAJE (La magia del Issue 5)
         # Todo el setup de LLMs, Base de datos y Registros ocurre bajo el capó.
-        client = await Xulcan.from_manifest("infraprint.yml")
+        client = await Xulcan.from_manifest("Xulcanfile")
         
-        # 2. CARGA DE CAPACIDADES ESTÁNDAR Y BLUEPRINTS
+        # 2. CARGA DE CAPACIDADES ESTÁNDAR
+        # Los blueprints se cargan desde el manifest (blueprints.autoload: true).
+        # Para recarga en caliente usar POST /v1/blueprints/reload.
         client.enable_stdlib("all")
-        client.load_blueprints_from_dir("blueprints")
         
         # 3. CONFIGURACIÓN DEL SANDBOX (Graceful Degradation)
         enabled_sandbox_tools = client.enable_sandbox()
@@ -152,8 +153,12 @@ async def list_blueprints(request: Request):
 
 @app.post("/v1/blueprints/reload", tags=["System"])
 async def reload_blueprints(request: Request):
-    count = request.app.state.client.load_blueprints_from_dir("blueprints")
-    return {"status": "success", "loaded": count}
+    client: Xulcan = request.app.state.client
+    bp_config = client.runtime.infrastructure.manifest.blueprints
+    total = 0
+    for path in bp_config.paths:
+        total += client.load_blueprints_from_dir(path)
+    return {"status": "success", "loaded": total, "paths": bp_config.paths}
 
 
 # ═══════════════════════════════════════════════════════════════════════════

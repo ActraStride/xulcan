@@ -52,7 +52,7 @@ class Xulcan:
         self._registries: RegistryContainer | None = None
 
     @classmethod
-    async def from_manifest(cls, manifest_path: str) -> "Xulcan":
+    async def from_manifest(cls, manifest_path: str = "Xulcanfile") -> "Xulcan":
         container = RegistryContainer()
         bootstrap_registries(container)
 
@@ -64,6 +64,20 @@ class Xulcan:
 
         instance = cls(runtime)
         instance._registries = container
+
+        # ── Autoload blueprints si el manifest lo indica ──────────────────
+        bp_config = runtime.infrastructure.manifest.blueprints
+        if bp_config.autoload:
+            manifest_dir = os.path.dirname(os.path.abspath(manifest_path))
+            logger.info(
+                "📂 Autoloading blueprints from %d path(s): %s",
+                len(bp_config.paths),
+                bp_config.paths,
+            )
+            for path in bp_config.paths:
+                resolved = os.path.join(manifest_dir, path)
+                instance.load_blueprints_from_dir(resolved)
+
         return instance
 
     @property
