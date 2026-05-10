@@ -147,8 +147,6 @@ class AgentBlueprint(ImmutableRecord):
         This parser normalizes ergonomic YAML shortcuts into canonical form:
         1. Tools as strings: ["search"] → [{"name": "search"}]
         2. Lifecycle arrow syntax: "tool -> var" → {tool, output_variable}
-        3. Legacy flat schema mapping: model_provider + model_name → model: ModelSpec
-        4. Legacy governance mapping: bursar_strategy → governance.budget
         """
         if not isinstance(data, dict):
             return data
@@ -177,69 +175,11 @@ class AgentBlueprint(ImmutableRecord):
                             new_hooks.append(hook)
                     data["lifecycle"][stage] = new_hooks
 
-        # ── 3. Sugar: Legacy Flat Schema Mapping ─────────────────────────
-        # model_provider + model_name + model_params → model: ModelSpec
-        if "model_provider" in data and "model" not in data:
-            model_data = {
-                "provider": data.pop("model_provider"),
-            }
-            # Extract known cognitive params from model_params if present
-            if "model_params" in data:
-                params = data.pop("model_params", {})
-                model_data["name"] = params.pop("model_name", params.pop("name", "unknown"))
-                # temperature and max_tokens are first-class in ModelSpec
-                if "temperature" in params:
-                    model_data["temperature"] = params.pop("temperature")
-                if "max_tokens" in params:
-                    model_data["max_tokens"] = params.pop("max_tokens")
-                # Remaining params go to ModelSpec.params
-                if params:
-                    model_data["params"] = params
-                elif "model_name" in data:
-                    model_data["name"] = data.pop("model_name")
-                elif "temperature" in data:
-                    model_data["temperature"] = data.pop("temperature")
-                elif "max_tokens" in data:
-                    model_data["max_tokens"] = data.pop("max_tokens")
-            else:
-                # Legacy fields at root level
-                model_data["name"] = data.pop("model_name", "unknown")
-                model_data["temperature"] = data.pop("temperature", 0.0)
-                if "max_tokens" in data:
-                    model_data["max_tokens"] = data.pop("max_tokens")
-            data["model"] = model_data
-
-        # ── 4. Sugar: Legacy Governance Mapping ───────────────────────────
-        # bursar_strategy + bursar_params → governance.budget: StrategyConfig
-        if "bursar_strategy" in data and "governance" not in data:
-            data["governance"] = {
-                "budget": {
-                    "strategy": data.pop("bursar_strategy"),
-                }
-            }
-            if "bursar_params" in data:
-                bursar_params = data.pop("bursar_params", {})
-                if bursar_params:
-                    data["governance"]["budget"]["params"] = bursar_params
-
-        # ── 5. Sugar: Legacy Context Mapping ──────────────────────────────
-        # context_strategy + context_params → context: StrategyConfig
-        if "context_strategy" in data and "context" not in data:
-            context_data = {"strategy": data.pop("context_strategy")}
-            if "context_params" in data:
-                params = data.pop("context_params", {})
-                if params:
-                    context_data["params"] = params
-            data["context"] = context_data
-
         return data
 
     # ═══════════════════════════════════════════════════════════════════════
-    # COMPATIBILITY BRIDGE (The Strangler Fig)
-    # Temporary properties to keep runtime.py working during the transition.
-    # These will be removed in the second pass post-refactor.
+    # BLUEPRINT SNAPSHOT
     # ═══════════════════════════════════════════════════════════════════════
-    # Dentro de la clase AgentBlueprint en xulcan/blueprint/schema.py
 
     def to_snapshot(self) -> BlueprintSnapshot:
         """
@@ -258,78 +198,6 @@ class AgentBlueprint(ImmutableRecord):
             context_strategy=self.context.strategy 
         )
 
-
-    @property
-    def model_provider(self) -> str:
-        """[DEPRECATED] Bridge property — use model.provider instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use model.provider.
-        """
-        return self.model.provider
-
-    @property
-    def model_name(self) -> str:
-        """[DEPRECATED] Bridge property — use model.name instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use model.name.
-        """
-        return self.model.name
-
-    @property
-    def temperature(self) -> float:
-        """[DEPRECATED] Bridge property — use model.temperature instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use model.temperature.
-        """
-        return self.model.temperature
-
-    @property
-    def max_tokens(self) -> int | None:
-        """[DEPRECATED] Bridge property — use model.max_tokens instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use model.max_tokens.
-        """
-        return self.model.max_tokens
-
-    @property
-    def bursar_strategy(self) -> str:
-        """[DEPRECATED] Bridge property — use governance.budget.strategy instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use governance.budget.strategy.
-        """
-        return self.governance.budget.strategy
-
-    @property
-    def bursar_params(self) -> JsonDict:
-        """[DEPRECATED] Bridge property — use governance.budget.params instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use governance.budget.params.
-        """
-        return self.governance.budget.params
-
-    @property
-    def context_strategy(self) -> str:
-        """[DEPRECATED] Bridge property — use context.strategy instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use context.strategy.
-        """
-        return self.context.strategy
-
-    @property
-    def context_params(self) -> JsonDict:
-        """[DEPRECATED] Bridge property — use context.params instead.
-
-        This property exists for compatibility during the refactor transition.
-        Delete after runtime.py is updated to use context.params.
-        """
-        return self.context.params
 
     # ── Derived Properties ────────────────────────────────────────────────
 

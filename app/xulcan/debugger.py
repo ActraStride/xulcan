@@ -415,7 +415,7 @@ class XulcanDebugger(App):
         # Cargar agente
         self.blueprint = self.engine.load_agent(yml_path)
         self.TITLE = f"⬡ XULCAN DEBUGGER  ·  {self.blueprint.name}"
-        self.SUB_TITLE = f"{self.blueprint.model_provider} / {self.blueprint.model_name or '?'}  ·  {yml_path}"
+        self.SUB_TITLE = f"{self.blueprint.model.provider} / {self.blueprint.model.name or '?'}  ·  {yml_path}"
 
     # ── Composición ─────────────────────────────────────────────────────────
 
@@ -473,8 +473,8 @@ class XulcanDebugger(App):
         econ   = self.query_one("#econ-body", EconomicsWidget)
 
         # Configurar budget display
-        if self.blueprint.budget and self.blueprint.budget.token_limit:
-            econ.budget = self.blueprint.budget.token_limit
+        if self.blueprint.governance.budget and self.blueprint.governance.budget.token_limit:
+            econ.budget = self.blueprint.governance.budget.token_limit
 
         # Redirigir todos los logs de xulcan al interceptor
         logging.basicConfig(level=logging.DEBUG)
@@ -489,11 +489,11 @@ class XulcanDebugger(App):
             f"[bold #BF00FF]⬡ XULCAN DEBUGGER[/]\n"
             f"[#4A3A6A]agente    [/][#E0D0FF]{self.blueprint.name}[/] "
             f"[#4A3A6A]({self.blueprint.id} v{self.blueprint.version})[/]\n"
-            f"[#4A3A6A]modelo    [/][#E0D0FF]{self.blueprint.model_provider} / {self.blueprint.model_name or '?'}[/]\n"
+            f"[#4A3A6A]modelo    [/][#E0D0FF]{self.blueprint.model.provider} / {self.blueprint.model.name or '?'}[/]\n"
             f"[#4A3A6A]sesión    [/][#BF00FF]{self._session_key}[/]\n"
-            f"[#4A3A6A]bursar    [/][#E0D0FF]{self.blueprint.bursar_strategy}[/]   "
-            f"[#4A3A6A]sentinel  [/][#E0D0FF]{self.blueprint.sentinel_strategy}[/]\n"
-            f"[#4A3A6A]contexto  [/][#E0D0FF]{self.blueprint.context_strategy}[/]   "
+            f"[#4A3A6A]bursar    [/][#E0D0FF]{self.blueprint.governance.budget.strategy}[/]   "
+            f"[#4A3A6A]sentinel  [/][#E0D0FF]{self.blueprint.tools[0].governance.sentinel.strategy if self.blueprint.tools else 'passthrough'}[/]\n"
+            f"[#4A3A6A]contexto  [/][#E0D0FF]{self.blueprint.context.strategy}[/]   "
             f"[#4A3A6A]tools     [/][#E0D0FF]{', '.join(self.blueprint.llm_tools) or 'ninguna'}[/]\n"
             f"[#2A0050]{'─' * 50}[/]\n"
         ))
