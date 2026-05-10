@@ -50,13 +50,14 @@ def bootstrap_registries(container: RegistryContainer) -> None:
 
     # ── State Store ───────────────────────────────────────────────────────
     from xulcan.memory.state.adapters.in_memory import MemoryStateStore
-
     container.state_store.register("memory", MemoryStateStore)
 
     # ── Vault ─────────────────────────────────────────────────────────────
     from xulcan.memory.vault.adapters.in_memory import MemoryVaultStore
+    from xulcan.memory.vault.adapters.local_env import LocalEnvVaultStore
 
     container.vault.register("memory", MemoryVaultStore)
+    container.vault.register("env", LocalEnvVaultStore)
 
     # ══════════════════════════════════════════════════════════════════════
     # 2. LLM ADAPTERS
