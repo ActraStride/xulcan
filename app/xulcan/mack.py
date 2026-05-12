@@ -43,7 +43,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         
         # 1. MATERIALIZACIÓN Y ENSAMBLAJE (La magia del Issue 5)
         # Todo el setup de LLMs, Base de datos y Registros ocurre bajo el capó.
-        client = await Xulcan.from_manifest("Xulcanfile")
+        manifest_path = os.getenv("XULCAN_MANIFEST", "Xulcanfile")
+        
+        client = await Xulcan.from_manifest(manifest_path)
         
         # 2. CARGA DE CAPACIDADES ESTÁNDAR
         # Los blueprints se cargan desde el manifest (blueprints.autoload: true).
