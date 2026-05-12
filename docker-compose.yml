@@ -148,7 +148,7 @@ services:
       # This MUST come last to ensure it's not overwritten.
       - /app/.venv
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${APP_PORT:-2012}:2012"
     depends_on:
       # Wait for healthy database services before starting.
       postgres:
@@ -158,7 +158,7 @@ services:
     networks:
       - xulcan-net
     # Run Uvicorn with hot-reload enabled for development.
-    command: uvicorn xulcan.mack:app --host 0.0.0.0 --port 8000 --reload --log-level ${LOG_LEVEL:-info}
+    command: uvicorn xulcan.mack:app --host 0.0.0.0 --port 2012 --reload --log-level ${LOG_LEVEL:-info}
     healthcheck:
       # Invoke healthcheck script using the container's virtual environment.
       test: ["CMD", "/app/.venv/bin/python", "/app/healthcheck.py"]
