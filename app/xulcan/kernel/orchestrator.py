@@ -17,10 +17,10 @@ Fixed Issues:
 from __future__ import annotations
 
 import uuid
-import logging
 import json
 import asyncio
 from typing import Any
+from xulcan.logging_config import get_logger, bind_contextvars, clear_contextvars
 
 from xulcan.core import MachineID
 from xulcan.core.economics import UsageStats, BudgetExceededError
@@ -72,7 +72,7 @@ from xulcan.protocol.message import (
 )
 from xulcan.protocol.tools import ToolCall
 
-logger = logging.getLogger("xulcan.kernel")
+logger = get_logger("xulcan.kernel")
 
 
 class ProtoKernel:
@@ -124,10 +124,11 @@ class ProtoKernel:
 
         return resolved_tool_names
 
-    def _log(self, emoji: str, msg: str, **kwargs: Any) -> None:
+    def _log(self, emoji: str, msg: str, level: str = "info", **kwargs: Any) -> None:
         """Internal structured logging helper."""
-        extra = f" | {json.dumps(kwargs, default=str)}" if kwargs else ""
-        logger.info(f"{emoji} {msg}{extra}")
+        # Structlog acomodará los **kwargs maravillosamente con colores a la derecha
+        log_func = getattr(logger, level.lower())
+        log_func(f"{emoji} {msg}", **kwargs)
 
     async def _execute_lifecycle_hooks(
         self, hooks: list[LifecycleHook], run_id: MachineID, stage: str
@@ -184,6 +185,7 @@ class ProtoKernel:
     ) -> tuple[str, UnifiedMessage | None]:
 
         run_id = run_id or str(uuid.uuid4())
+        bind_contextvars(run_id=run_id, agent_id=agent_id, blueprint=blueprint.id)
         context: list[UnifiedMessage] = [UserMessage(content=user_input)]
 
         loop_counter = 0
@@ -205,7 +207,8 @@ class ProtoKernel:
 
         def transition(new_state: KernelState) -> None:
             nonlocal current_state
-            self._log("⚡", f"[FSM] {current_state.value} -> {new_state.value}")
+            # ✅ Cambiado a nivel debug, para que no ensucie la terminal por defecto
+            self._log("⚡", f"[FSM] {current_state.value} -> {new_state.value}", level="debug")
             validate_transition(current_state, new_state)
             current_state = new_state
 
@@ -655,6 +658,9 @@ class ProtoKernel:
                 blueprint=blueprint
             )
             raise
+
+        finally:
+            clear_contextvars()
 
     async def _handle_failure(
         self,
