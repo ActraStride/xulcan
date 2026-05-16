@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from xulcan.core import MachineID
-from xulcan.blueprint.types import BaseContextConfig  # ← Importado desde contracts
+from xulcan.contracts import BaseContextConfig  # ← Importado desde contracts
 from xulcan.protocol.message import UnifiedMessage, SystemMessage, AssistantMessage, ToolMessage
 from xulcan.utils.template import render_template
 
