@@ -1,26 +1,18 @@
 """
-Defines the economic primitives for resource accounting and budgeting.
+Defines the economic primitives for resource accounting in Xulcan.
 
 This module models the consumption of resources as conserved physical
-quantities—Matter (tokens) and Time (latency).
+quantities — Matter (tokens) and Time (latency).
 
-It relies on `primitives.ImmutableRecord` for immutability but focuses
-strictly on:
+Strictly contains: UsageStats.
 
-Resource Accounting & Control
-Standardized structures (`UsageStats`, `BudgetConfig`) that:
-1. Model execution costs deterministically.
-2. Validate mathematical consistency (e.g., input + output = total).
-3. Enforce limits via hard caps or soft notifications.
-
-This separation ensures that financial and operational limits are treated
-as first-class domain concepts, decoupled from the static data types.
+Budget enforcement policies (BursarHaltError, EnforcedBursarConfig, etc.)
+live in xulcan/governance/ — they are policy concerns, not physics.
 """
 
 from __future__ import annotations
 
 import warnings
-from enum import Enum
 from pydantic import Field, model_validator
 
 from .primitives import ImmutableRecord, FinitePositiveFloat
@@ -248,120 +240,3 @@ class UsageStats(ImmutableRecord):
             The sum of cache_read_input_tokens and cache_creation_input_tokens.
         """
         return self.cache_read_input_tokens + self.cache_creation_input_tokens
-
-
-# =============================================================================
-# ECONOMIC PRIMITIVES (BUDGETING)
-# =============================================================================
-
-class BudgetExceededError(RuntimeError):
-    """Raised when a strict execution limit (HARD_CAP) is breached.
-
-    This exception is part of the contract defined by BudgetStrategy.HARD_CAP.
-    It indicates that the operation was halted to preserve resources.
-
-    Attributes:
-        current_usage: The resource usage value at the time of exception.
-        limit: The configured budget limit that was exceeded.
-    """
-
-    def __init__(self, message: str, current_usage: float, limit: float):
-        """Initializes the BudgetExceededError.
-
-        Args:
-            message: A descriptive error message.
-            current_usage: The current resource usage value.
-            limit: The budget limit that was exceeded.
-        """
-        self.current_usage = current_usage
-        self.limit = limit
-        super().__init__(f"{message} (Usage: {current_usage} > Limit: {limit})")
-
-
-class BudgetStrategy(str, Enum):
-    """Defines the behavior policy when a resource limit is reached.
-
-    This enumeration dictates whether the system should forcefully abort operations
-    or simply flag them for review when a budget threshold is crossed.
-
-    Attributes:
-        HARD_CAP: Forcefully abort operations when the limit is reached.
-        SOFT_NOTIFY: Log a warning but continue execution.
-    """
-    HARD_CAP = "hard_cap"
-    SOFT_NOTIFY = "soft_notify"
-
-
-class BudgetConfig(ImmutableRecord):
-    """Defines the economic constraints (Resource Limits) for an execution run.
-
-    This class represents the "A Priori" contract (Input Constraints) enforced by
-    the system, as opposed to `UsageStats` which represents the "A Posteriori"
-    report (Output Costs).
-
-    It decouples policy from identity, allowing dynamic budget assignment per request.
-    Limits can be set on **Matter** (Tokens) and/or **Time** (Latency).
-    """
-    token_limit: int | None = Field(
-        default=None,
-        gt=0,
-        description="Hard limit on total tokens. If None, no limit is enforced."
-    )
-
-    time_limit_ms: FinitePositiveFloat | None = Field(
-        default=None,
-        description="Hard limit on total execution time (latency). If None, no limit is enforced."
-    )
-
-    strategy: BudgetStrategy = Field(
-        default=BudgetStrategy.HARD_CAP,
-        description="Policy to apply when the limit is reached."
-    )
-
-    @property
-    def is_unbounded(self) -> bool:
-        """Checks if this budget imposes no resource constraints.
-
-        Returns:
-            True if both token_limit and time_limit_ms are None, False otherwise.
-        """
-        return self.token_limit is None and self.time_limit_ms is None
-
-    @model_validator(mode='after')
-    def validate_budget_semantics(self) -> BudgetConfig:
-        """Validates the logical consistency of the budget configuration.
-
-        - Ensures HARD_CAP has at least one actual limit.
-        - Warns if SOFT_NOTIFY is used without any limits (passive observer).
-        - Ensures time constraints, if provided, are strictly greater than zero.
-
-        Returns:
-            BudgetConfig: The validated instance.
-
-        Raises:
-            ValueError: If HARD_CAP strategy has no defined limits.
-            ValueError: If time_limit_ms is specified but not greater than zero.
-        """
-        # Validate unbounded semantics based on strategy
-        if self.is_unbounded:
-            if self.strategy == BudgetStrategy.HARD_CAP:
-                raise ValueError(
-                    "BudgetStrategy.HARD_CAP requires at least one limit "
-                    "(token_limit or time_limit_ms) to be defined. "
-                    "An unbounded hard cap is semantically meaningless."
-                )
-
-            # If strategy is SOFT_NOTIFY and unbounded, it's just a passive tracker.
-            warnings.warn(
-                "BudgetConfig with SOFT_NOTIFY and no limits acts as a passive "
-                "observer. It will track resource consumption but never enforce "
-                "constraints.",
-                UserWarning,
-                stacklevel=2
-            )
-
-        # Validate time limit physics
-        if self.time_limit_ms is not None and self.time_limit_ms <= 0:
-            raise ValueError("time_limit_ms must be strictly greater than 0 if specified.")
-
-        return self
