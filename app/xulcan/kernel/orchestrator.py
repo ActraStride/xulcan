@@ -23,7 +23,8 @@ from typing import Any
 from xulcan.logging_config import get_logger, bind_contextvars, clear_contextvars
 
 from xulcan.core import MachineID
-from xulcan.core.economics import UsageStats, BudgetExceededError
+from xulcan.core.economics import UsageStats
+from xulcan.governance.errors import BursarHaltError
 from xulcan.governance.verdicts import (
     SentinelVerdict,
     BursarVerdict,
@@ -223,15 +224,6 @@ class ProtoKernel:
         bursar = self.bursar_registry.build(
             blueprint.governance.budget.strategy,
             blueprint.governance.budget.params
-        )
-        sentinel = self.sentinel_registry.build(
-            blueprint.tools[0].governance.sentinel.strategy if blueprint.tools else "passthrough",
-            blueprint.tools[0].governance.sentinel.params if blueprint.tools else {}
-        )
-        human_gate = self.human_gate_registry.build(
-            blueprint.tools[0].governance.human_gate.strategy if blueprint.tools else "auto_approve",
-            blueprint.tools[0].governance.human_gate.params if blueprint.tools else {}
-        )
 
         self._log("🎬", f"STARTING RUN: {run_id}", agent=blueprint.id)
 
@@ -311,23 +303,19 @@ class ProtoKernel:
                     transition(KernelState.CHECKING_BUDGET)
 
                 elif current_state == KernelState.CHECKING_BUDGET:
-                    verdict = bursar.evaluate(
+                    verdict = bursar.evaluate(   # ← si HALT, levanta BursarHaltError internamente
                         cumulative_usage=cumulative_usage,
                         run_id=run_id,
                         loop_counter=loop_counter
                     )
 
                     if verdict == BursarVerdict.WARN:
-                        limit = blueprint.governance.budget.params.get("token_limit", 0)
-                        self._log("⚠️", f"Budget warning: {cumulative_usage.total_tokens}/{limit} tokens")
-                        # BudgetNotified event could be added here
-
-                    if verdict == BursarVerdict.HALT:
-                        raise BudgetExceededError(
-                            "Budget hard cap exceeded — Bursar halted the run.",
-                            current_usage=cumulative_usage.total_tokens,
-                            limit=limit if 'limit' in locals() else 0
+                        self._log(
+                            "⚠️",
+                            f"Budget warning — tokens: {cumulative_usage.total_tokens}, "
+                            f"latency: {cumulative_usage.latency_ms}ms"
                         )
+                        # TODO #49: emitir BudgetNotified (InfraEvent) aquí
 
                     transition(KernelState.PREPARING_CONTEXT)
 
@@ -635,8 +623,8 @@ class ProtoKernel:
             # If we exited via FAILED
             return run_id, None
 
-        except BudgetExceededError as e:
-            logger.warning(f"💰 Budget exceeded: {e}")
+        except BursarHaltError as e:
+            logger.warning(f"💰 Bursar halt: {e}")
             await self._handle_failure(
                 run_id=run_id,
                 error_type="budget_exceeded",

@@ -1,33 +1,26 @@
-"""Unlimited Bursar — always approves. The default for development."""
-
-from __future__ import annotations
-
-from xulcan.governance.bursar.base import (
-    BaseBursarStrategy, BaseBursarConfig, BursarVerdict
-)
-from xulcan.core.economics import UsageStats, BudgetConfig
+from xulcan.governance.bursar.base import BaseBursarStrategy, BaseBursarConfig
+from xulcan.governance.verdicts import BursarVerdict
+from xulcan.core.economics import UsageStats
 
 
-class UnlimitedConfig(BaseBursarConfig):
-    """No parameters. Unlimited strategy approves everything."""
+class UnlimitedBursarConfig(BaseBursarConfig):
+    """Sin parámetros. Unlimited aprueba todo sin excepción."""
     pass
 
 
 class UnlimitedBursarStrategy(BaseBursarStrategy):
-    """Always approves. Equivalent to a structural stub.
+    """Siempre aprueba. Equivalente a un stub estructural.
 
-    Use for:
-        - Development and testing.
-        - Agents where cost is not a concern.
-        - When no budget is declared in the Blueprint.
+    Usa cuando:
+        - No se declara budget en el Blueprint.
+        - Desarrollo y testing sin preocupación por costos.
 
     YAML:
-        bursar_strategy: "unlimited"
-        bursar_params: {}
+        governance:
+          budget: unlimited
     """
 
-    ConfigSchema = UnlimitedConfig
+    ConfigSchema = UnlimitedBursarConfig
 
     def _check(self, cumulative_usage: UsageStats) -> BursarVerdict:
-        # No importa cuánto gaste, esta estrategia siempre aprueba.
         return BursarVerdict.APPROVED

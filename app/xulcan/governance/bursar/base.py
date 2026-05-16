@@ -81,7 +81,28 @@ class BaseBursarStrategy(ABC):
                 f"Hard cap exceeded. Stopping run."
             )
 
+        if verdict == BursarVerdict.HALT:
+            # La estrategia levanta el error con los datos que solo ella conoce.
+            # El Kernel hace re-raise sin necesitar inspeccionar BursarConfig.
+            self._raise_halt(cumulative_usage)
+
         return verdict
+
+    def _raise_halt(self, cumulative_usage: UsageStats) -> None:
+        """Levanta BursarHaltError con contexto de límite.
+        
+        Las subclases con límites específicos pueden sobreescribir esto
+        para proveer limit y limit_type precisos. La implementación base
+        usa el consumo actual como proxy (para UnlimitedBursarStrategy
+        esto nunca se llama).
+        """
+        from xulcan.governance.errors import BursarHaltError
+        raise BursarHaltError(
+            "Bursar halted the run.",
+            current_usage=float(cumulative_usage.total_tokens),
+            limit=0.0,
+            limit_type="unknown",
+        )
 
     @abstractmethod
     def _check(

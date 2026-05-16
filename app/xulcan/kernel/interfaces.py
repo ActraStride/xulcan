@@ -34,10 +34,10 @@ from ..core.primitives import MachineID
 
 # Safe imports for type hinting without causing circular runtime dependencies
 if TYPE_CHECKING:
-    from ..core.economics import UsageStats, BudgetConfig
+    from xulcan.core.economics import UsageStats
     from xulcan.governance.verdicts import BursarVerdict
-    from ..blueprint.schema import AgentBlueprint
-    from .environment import SystemEnvironment
+    from xulcan.blueprint.schema import AgentBlueprint
+    from xulcan.kernel.environment import SystemEnvironment
 
 
 # ═══════════════════════════════════════════════════════════════════════════
