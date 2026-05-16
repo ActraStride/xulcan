@@ -31,10 +31,10 @@ from xulcan.core.primitives import (
     SemanticVersion,
     ContextKey,
 )
-from xulcan.blueprint.types import (
-    ModelSpec,          # Canonical ModelSpec from contracts.py
-    StrategyConfig,     # For context strategy
-    GovernanceConfig,   # For governance (budget only)
+from xulcan.contracts import (
+    ModelSpec,
+    StrategyConfig,
+    GovernanceConfig,
     BlueprintSnapshot,
 )
 from xulcan.blueprint.components import AgentToolConfig, LifecycleConfig
@@ -187,7 +187,6 @@ class AgentBlueprint(ImmutableRecord):
         Filtra herramientas y prompts, dejando solo la configuración cognitiva.
         """
         # Importamos aquí para evitar colisiones circulares si las hubiera
-        from xulcan.blueprint.types import BlueprintSnapshot
         
         return BlueprintSnapshot(
             id=self.id,
@@ -241,15 +240,15 @@ class AgentBlueprint(ImmutableRecord):
 
     @model_validator(mode='after')
     def warn_if_budget_without_enforcement(self) -> AgentBlueprint:
-        """Warns the user if a budget is declared but the Bursar won't enforce it."""
+        """Advierte si se declaran params de budget pero la estrategia es 'unlimited'."""
         if (
-            self.governance.budget.strategy not in ("unlimited", "passthrough")
+            self.governance.budget.params
             and self.governance.budget.strategy == "unlimited"
         ):
             warnings.warn(
-                f"Agent '{self.id}' defines governance.budget, but strategy "
-                f"is set to 'unlimited'. The budget limits will be IGNORED. "
-                f"Set a different budget strategy in your YAML to apply them.",
+                f"El agente '{self.id}' define governance.budget.params, pero la estrategia "
+                f"es 'unlimited'. Los límites de budget serán IGNORADOS. "
+                f"Establece una estrategia diferente en tu YAML para aplicarlos.",
                 UserWarning,
                 stacklevel=2
             )

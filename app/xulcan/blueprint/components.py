@@ -16,7 +16,8 @@ from xulcan.core.primitives import (
     ContextKey,
     JsonDict
 )
-from xulcan.blueprint.types import ToolGovernanceConfig
+from xulcan.contracts import ToolGovernanceConfig
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

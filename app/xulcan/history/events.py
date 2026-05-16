@@ -31,8 +31,8 @@ from xulcan.core.primitives import (
     JsonDict,
     SemanticVersion
 )
-from xulcan.blueprint.types import BlueprintSnapshot, StrategyConfig
-from xulcan.core.economics import BudgetConfig, UsageStats
+from xulcan.contracts import BlueprintSnapshot, StrategyConfig
+from xulcan.core.economics import UsageStats
 from xulcan.protocol.message import UnifiedMessage
 from xulcan.protocol.tools import ToolCall
 
