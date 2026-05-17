@@ -35,3 +35,21 @@ class BursarHaltError(RuntimeError):
             f"{message} "
             f"(usage: {current_usage} > limit: {limit} [{limit_type}])"
         )
+
+
+class RunNotSuspendedError(RuntimeError):
+    """Raised when resume_run() is called on a run that is not suspended.
+
+    This prevents corrupting the run state if resume_run() is called
+    on a completed, failed, or non-existent run.
+
+    Attributes:
+        run_id: The run ID that was not suspended.
+    """
+
+    def __init__(self, run_id: str):
+        self.run_id = run_id
+        super().__init__(
+            f"Run '{run_id}' is not suspended. "
+            f"Cannot resume. The run may be completed, failed, or never existed."
+        )

@@ -46,6 +46,7 @@ class EventType(str, Enum):
     RUN_CREATED = "run_created"
     RUN_COMPLETED = "run_completed"
     RUN_FAILED = "run_failed"
+    RUN_SUSPENDED = "run_suspended"  # ← Issue #53
     
     # Flow
     STEP_STARTED = "step_started"
@@ -216,6 +217,30 @@ class RunFailed(BaseRunEvent):
     traceback: SemanticText | None = Field(
         default=None,
         description="Python traceback for debugging (omitted in production)."
+    )
+
+
+class RunSuspended(BaseRunEvent):
+    """Fired when the run enters SUSPENDED state and waits for human intervention.
+
+    The run is paused at this point. State has been serialized to StateStore.
+    Recovery happens via resume_run().
+
+    Note: This is NOT a terminal state. The run can be resumed or failed later.
+    """
+    type: Literal[EventType.RUN_SUSPENDED] = EventType.RUN_SUSPENDED
+
+    reason: SemanticText = Field(
+        description="Why the run was suspended (e.g., sentinel escalation, human_gate request)."
+    )
+
+    pending_tool: MachineID | None = Field(
+        default=None,
+        description="The tool call that triggered the suspension, if applicable."
+    )
+
+    suspended_at: datetime = Field(
+        description="ISO 8601 timestamp when the run was suspended."
     )
 
 
@@ -429,7 +454,7 @@ class HumanInterventionResult(BaseRunEvent):
 # ═══════════════════════════════════════════════════════════════════════════
 
 RunEvent = Annotated[
-    RunCreated | RunCompleted | RunFailed |
+    RunCreated | RunCompleted | RunFailed | RunSuspended |  # ← Issue #53: Added RunSuspended
     StepStarted |
     ModelRequest | ModelResponse | ModelFallback |
     ToolExecution | ToolOutput |
