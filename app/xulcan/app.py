@@ -334,10 +334,19 @@ class Xulcan:
         run_id: str | None = None,
         session_key: str | None = None,
         metadata: dict | None = None,
+        app_config: "AppConfig | None" = None,  # ← Issue #52: App-level governance
     ) -> tuple[str, str]:
 
         if not blueprint:
             raise ValueError("An AgentBlueprint must be provided to run.")
+
+        # ── Issue #52: Resolve AppConfig if not provided ───────────────
+        # If app_config is not passed, try to resolve it from the manifest
+        # based on the blueprint's namespace.
+        if app_config is None and self._runtime.infrastructure.manifest.apps:
+            app_config = self._resolve_app_for_blueprint(
+                blueprint, self._runtime.infrastructure.manifest.apps
+            )
 
         parent_id = None
         if session_key:
@@ -347,6 +356,7 @@ class Xulcan:
             blueprint=blueprint,
             user_input=prompt,
             agent_id=agent_id,
+            app_config=app_config,  # ← Issue #52: Pass AppConfig for hierarchical governance
             parent_id=parent_id,
             run_id=run_id,
             metadata=metadata
@@ -357,6 +367,36 @@ class Xulcan:
 
         response_text = str(response.content) if response and response.content else ""
         return actual_run_id, response_text
+
+    def _resolve_app_for_blueprint(
+        self,
+        blueprint: AgentBlueprint,
+        apps: list["AppConfig"],
+    ) -> "AppConfig | None":
+        """Resolve which AppConfig a blueprint belongs to based on namespace.
+
+        The blueprint's ID (e.g., 'sales.pricing-agent') determines which
+        app folder it belongs to. Matches the prefix of the blueprint.id
+        with the app's path.
+        """
+        if not apps:
+            return None
+
+        # Blueprint ID format: namespace.agent-name (e.g., 'sales.pricing-agent')
+        # App path format: the folder name (e.g., 'sales')
+        blueprint_parts = blueprint.id.split('.')
+        if len(blueprint_parts) < 2:
+            return None
+
+        blueprint_namespace = blueprint_parts[0]
+
+        for app in apps:
+            # Normalize app path for comparison
+            app_path = app.path.replace('/', '.').replace('\\', '.')
+            if blueprint_namespace == app_path or blueprint_namespace.startswith(f"{app_path}."):
+                return app
+
+        return None
 
     async def get_audit(self, run_id: str) -> dict[str, Any]:
         """Returns the full event ledger (black box) for a run."""
