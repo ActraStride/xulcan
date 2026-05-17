@@ -410,6 +410,37 @@ class Xulcan:
         except KeyError:
             return {"error": f"Run {run_id} not found."}
 
+    async def resume_run(
+        self,
+        run_id: str,
+        decision: bool,
+        feedback: str | None = None,
+    ) -> tuple[str, str]:
+        """Resume a suspended run with a human decision.
+
+        Issue #53: Stateless FSM — enables horizontal scaling by serializing
+        the FSM state to StateStore when waiting for human approval.
+
+        Args:
+            run_id: The run ID to resume (must have been suspended).
+            decision: True = approved (continue), False = rejected (abort).
+            feedback: Optional feedback from the human operator.
+
+        Returns:
+            tuple[str, str]: (run_id, response_text)
+
+        Raises:
+            RunNotSuspendedError: If the run is not suspended or doesn't exist.
+        """
+        run_id, response = await self._runtime.kernel.resume_run(
+            run_id=run_id,
+            decision=decision,
+            feedback=feedback,
+        )
+
+        response_text = str(response.content) if response and response.content else ""
+        return run_id, response_text
+
     def subscribe_to_firehose(self, run_id: str) -> AsyncIterator[str]:
         """Returns an async iterator for real-time Firehose events."""
         channel = f"xulcan:firehose:{run_id}"
