@@ -92,6 +92,7 @@ class ProtoKernel:
         bursar_registry: ProviderRegistry[BursarStrategy],
         sentinel_registry: ProviderRegistry[SentinelStrategy],
         human_gate_registry: ProviderRegistry[HumanGateStrategy],
+        governance_resolver: GovernanceResolver | None = None,  # ← Issue #52
         environment: SystemEnvironment | None = None,
     ):
         self.repo = repository
@@ -101,6 +102,7 @@ class ProtoKernel:
         self.bursar_registry = bursar_registry
         self.sentinel_registry = sentinel_registry
         self.human_gate_registry = human_gate_registry
+        self.governance_resolver = governance_resolver  # ← Issue #52
         self.environment = environment
 
     def _resolve_blueprint_namespace(self, blueprint: AgentBlueprint) -> str:
@@ -180,6 +182,7 @@ class ProtoKernel:
         blueprint: AgentBlueprint,
         user_input: str,
         agent_id: str,
+        app_config: "AppConfig | None" = None,  # ← Issue #52: App-level governance
         parent_id: MachineID | None = None,
         run_id: str | None = None,
         metadata: dict | None = None,
@@ -221,9 +224,24 @@ class ProtoKernel:
             blueprint.context.strategy,
             blueprint.context.params
         )
-        bursar = self.bursar_registry.build(
-            blueprint.governance.budget.strategy,
-            blueprint.governance.budget.params
+
+        # ── Issue #52: Hierarchical Bursar Resolution ──────────────────
+        # The GovernanceResolver compiles App + Agent limits into a single
+        # CompositeBursarStrategy. This happens at execution time, not
+        # assembly time, because the blueprint is per-run.
+        #
+        # Use the injected resolver if available, otherwise fall back to
+        # direct instantiation (for backwards compatibility).
+        if self.governance_resolver is not None:
+            resolver = self.governance_resolver
+        else:
+            from xulcan.governance.resolver import GovernanceResolver
+            resolver = GovernanceResolver(self.bursar_registry)
+
+        bursar = resolver.resolve(
+            app_config=app_config,
+            agent_blueprint=blueprint,
+        )
 
         self._log("🎬", f"STARTING RUN: {run_id}", agent=blueprint.id)
 

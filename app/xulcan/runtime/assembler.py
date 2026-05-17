@@ -14,6 +14,7 @@ from xulcan.registry.container import RegistryContainer
 from xulcan.kernel.environment import SystemEnvironment
 from xulcan.kernel.orchestrator import ProtoKernel
 from xulcan.llm.executor import LLMExecutor
+from xulcan.governance.resolver import GovernanceResolver  # ← Issue #52
 
 from xulcan.tools.executors.local import LocalPythonExecutor
 from xulcan.tools.executors.agent import SubAgentExecutor
@@ -39,6 +40,12 @@ class RuntimeAssembler:
         6. ProtoKernel        (receives all surfaces + governance registries)
         7. Post-construction  (SubAgentExecutor.bind_kernel)
 
+    Note on Governance Resolution (Issue #52):
+        The GovernanceResolver is instantiated here but the actual
+        hierarchical Bursar resolution happens at execute_run() time,
+        when the AgentBlueprint is available. This preserves the design
+        principle that the Kernel remains blind to hierarchy resolution.
+
     Note on tool routing:
         ToolRouterExecutor._routing_table is empty after assembly.
         Routes are registered by the public API (@tool, add_agent,
@@ -53,6 +60,11 @@ class RuntimeAssembler:
     ):
         self._infrastructure = infrastructure
         self._registries = registries
+        # ── Issue #52: GovernanceResolver aware ──────────────────────
+        # The resolver is instantiated inside ProtoKernel at execute_run()
+        # because the AgentBlueprint is not available at assembly time.
+        # The assembler provides the bursar_registry; resolution is per-run.
+        self._governance_resolver = GovernanceResolver(registries.bursar)
 
     async def assemble(self) -> RuntimeContext:
         infra = self._infrastructure
@@ -100,6 +112,7 @@ class RuntimeAssembler:
         # ── 6. ProtoKernel ───────────────────────────────────────────────
         # Passive execution consumer. Receives all wired surfaces.
         # Governance registries come from RegistryContainer.
+        # ── Issue #52: GovernanceResolver injected for hierarchical bursar.
         kernel = ProtoKernel(
             repository=infra.ledger,
             llm_executor=llm_executor,
@@ -108,9 +121,10 @@ class RuntimeAssembler:
             bursar_registry=self._registries.bursar,
             sentinel_registry=self._registries.sentinel,
             human_gate_registry=self._registries.human_gate,
+            governance_resolver=self._governance_resolver,  # ← Issue #52
             environment=environment,
         )
-        logger.debug("✓ ProtoKernel assembled")
+        logger.debug("✓ ProtoKernel assembled with GovernanceResolver")
 
         # ── 7. Post-Construction Cyclic Binding ──────────────────────────
         # SubAgentExecutor needs kernel to spawn child runs.
