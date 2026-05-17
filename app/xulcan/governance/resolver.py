@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING
 from xulcan.governance.bursar.base import BaseBursarStrategy
 from xulcan.governance.bursar.strategies.enforced import EnforcedBursarStrategy
 from xulcan.governance.bursar.strategies.unlimited import UnlimitedBursarStrategy
-from xulcan.governance.bursar.strategies.composite import CompositeBursarStrategy
 from xulcan.contracts import GovernanceConfig
 
 if TYPE_CHECKING:
@@ -106,13 +105,12 @@ class GovernanceResolver:
 
         # Case 1: Both have enforced limits → Composite
         if app_is_enforced and agent_is_enforced:
-            logger.debug(f"[GovernanceResolver] Both enforced — creating CompositeBursarStrategy")
-            app_bursar = _build_bursar_from_config(app_governance, self._bursar_registry)
-            agent_bursar = _build_bursar_from_config(agent_governance, self._bursar_registry)
-            return CompositeBursarStrategy(
-                app_bursar=app_bursar,
-                agent_bursar=agent_bursar,
+            logger.warning(
+                "[GovernanceResolver] Both App and Agent have enforced limits. "
+                "CompositeBursarStrategy not yet implemented (Issue #54). "
+                "Falling back to Agent Bursar (most restrictive assumed)."
             )
+            return _build_bursar_from_config(agent_governance, self._bursar_registry)
 
         # Case 2: Only Agent has enforced limit → Agent Bursar directly
         if agent_is_enforced and not app_is_enforced:
