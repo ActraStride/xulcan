@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from xulcan.manifest.schema import AppConfig
 from xulcan.runtime.loaders.blueprint_loader import BlueprintLoader
 
 if TYPE_CHECKING:
@@ -18,40 +19,87 @@ logger = logging.getLogger("xulcan.runtime.loaders.app_discovery")
 
 
 class AppDiscoveryEngine:
-    """Discovers apps from disk and registers namespaces, agents, and tools."""
+    """Discovers apps from disk and registers namespaces, agents, and tools.
+
+    Each ``AppConfig`` entry in the manifest is resolved to an on-disk
+    directory.  The engine loads agents (YAML blueprints) and tools (Python
+    modules) found inside that directory and registers them under the app's
+    namespace.
+
+    ``discover_all`` returns the resolved ``AppConfig`` objects — including
+    any governance metadata — so the ``RuntimeAssembler`` can forward them
+    to the ``GovernanceResolver`` without re-parsing the manifest.
+    """
 
     def __init__(self, client: Xulcan):
         self._client = client
 
-    async def discover_all(self, app_paths: list[str], base_dir: str | None = None) -> None:
-        if not app_paths:
-            return
+    async def discover_all(
+        self,
+        apps: list[AppConfig],
+        base_dir: str | None = None,
+    ) -> list[AppConfig]:
+        """Discover and register all app namespaces.
+
+        Args:
+            apps: Resolved ``AppConfig`` objects from the manifest. Legacy
+                string entries will have already been normalised to
+                ``AppConfig(path=..., governance=None)`` by the manifest
+                parser.
+            base_dir: Base directory used to resolve relative ``path``
+                values.  Defaults to the current working directory.
+
+        Returns:
+            The same ``AppConfig`` objects, in discovery order, including
+            their governance metadata.  The ``RuntimeAssembler`` should pass
+            this list to the ``GovernanceResolver`` so app-level governance
+            is compiled centrally without re-parsing the manifest.
+        """
+        if not apps:
+            return []
 
         base_dir_path = Path(base_dir) if base_dir else Path.cwd()
-        resolved_paths = [
-            Path(path) if Path(path).is_absolute() else base_dir_path / path
-            for path in app_paths
-        ]
+        resolved: list[AppConfig] = []
 
-        for path in resolved_paths:
-            await self._discover_app(path)
+        for app_config in apps:
+            app_path = Path(app_config.path)
+            app_root = (
+                app_path
+                if app_path.is_absolute()
+                else base_dir_path / app_path
+            )
+            await self._discover_app(app_root, app_config)
+            resolved.append(app_config)
 
-    async def _discover_app(self, app_root: Path) -> None:
+        return resolved
+
+    async def _discover_app(self, app_root: Path, app_config: AppConfig) -> None:
         app_root = app_root.resolve()
         if not app_root.exists():
             raise FileNotFoundError(f"App folder not found: {app_root}")
         if not app_root.is_dir():
             raise ValueError(f"App path is not a directory: {app_root}")
 
+        # The namespace is the folder name, which equals app_config.path for
+        # simple (non-nested) paths and is the terminal component for nested
+        # ones.  This preserves backward-compatible namespace semantics while
+        # allowing the full app_config (including governance) to travel with
+        # the discovered namespace.
         namespace = app_root.name
-        logger.info("📦 Discovering app namespace '%s' at %s", namespace, app_root)
+        logger.info(
+            "📦 Discovering app namespace '%s' at %s (governance=%s)",
+            namespace,
+            app_root,
+            app_config.governance,
+        )
 
         blueprint_files = self._collect_blueprint_files(app_root)
         tool_files = self._collect_tool_files(app_root / "tools")
 
         if not blueprint_files and not tool_files:
             raise ValueError(
-                f"App folder '{app_root}' must contain at least one agent YAML or one tool Python file."
+                f"App folder '{app_root}' must contain at least one agent YAML "
+                "or one tool Python file."
             )
 
         for blueprint_path in blueprint_files:
@@ -78,7 +126,7 @@ class AppDiscoveryEngine:
 
         return sorted(
             [path for path in tools_root.rglob("*.py") if path.name != "__init__.py"],
-            key=lambda p: str(p)
+            key=lambda p: str(p),
         )
 
     def _load_blueprint(self, blueprint_path: Path, namespace: str, app_root: Path) -> Any:
@@ -89,14 +137,16 @@ class AppDiscoveryEngine:
             raise ValueError(f"Blueprint file is empty: {blueprint_path}")
 
         if not isinstance(raw_data, dict):
-            raise ValueError(f"Invalid blueprint content in {blueprint_path}. Expected a YAML mapping.")
+            raise ValueError(
+                f"Invalid blueprint content in {blueprint_path}. Expected a YAML mapping."
+            )
 
         if not raw_data.get("id"):
             raw_data["id"] = derived_id
         elif raw_data["id"] != derived_id:
             raise ValueError(
-                f"Blueprint ID mismatch for '{blueprint_path}': declared id '{raw_data['id']}' "
-                f"does not match inferred app id '{derived_id}'."
+                f"Blueprint ID mismatch for '{blueprint_path}': declared id "
+                f"'{raw_data['id']}' does not match inferred app id '{derived_id}'."
             )
 
         blueprint = BlueprintLoader.from_dict(raw_data)
