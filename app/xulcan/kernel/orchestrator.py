@@ -473,16 +473,26 @@ class ProtoKernel:
                             None
                         )
 
-                    # Build governance strategies for this specific tool
-                    sentinel_strategy = (
-                        tool_config.governance.sentinel.strategy
-                        if tool_config else "passthrough"
+                    
+                    # REEMPLAZAR desde "# Build governance strategies for this specific tool"
+                    # hasta "tool_sentinel = self.sentinel_registry.build(...)"
+
+                    # ── Resolución de governance (cadena de 3 niveles) ────
+                    # Si tool_config existe: usa su governance declarada.
+                    # Si no existe (tool desconocido): usa defaults del blueprint.
+                    # Los defaults del blueprint ya tienen 'passthrough'/'auto_approve'
+                    # como factory — el nivel 3 está garantizado por construcción.
+                    if tool_config is not None:
+                        resolved_sentinel = tool_config.governance.sentinel
+                        resolved_human_gate = tool_config.governance.human_gate
+                    else:
+                        resolved_sentinel = blueprint.default_sentinel
+                        resolved_human_gate = blueprint.default_human_gate
+
+                    tool_sentinel = self.sentinel_registry.build(
+                        resolved_sentinel.strategy,
+                        resolved_sentinel.params
                     )
-                    sentinel_params = (
-                        tool_config.governance.sentinel.params
-                        if tool_config else {}
-                    )
-                    tool_sentinel = self.sentinel_registry.build(sentinel_strategy, sentinel_params)
 
                     sentinel_result = tool_sentinel.evaluate(
                         call=tool_call_to_check,
@@ -513,6 +523,7 @@ class ProtoKernel:
                         transition(KernelState.CHECKING_BUDGET)
 
                     elif sentinel_result.verdict == SentinelVerdict.ESCALATE:
+                        # resolved_human_gate disponible aquí para #53 (Stateless FSM)
                         pending_escalation = (tool_call_to_check, sentinel_result.reason)
                         await self.repo.append(HumanInterventionRequired(
                             run_id=run_id,
@@ -525,7 +536,7 @@ class ProtoKernel:
                             }
                         ))
                         transition(KernelState.SUSPENDED)
-
+                        
                 elif current_state == KernelState.SUSPENDED:
                     # Re-entry point after human approval/rejection via Nexus or external system
                     # In v1.x, we expect the result to be injected via a separate mechanism

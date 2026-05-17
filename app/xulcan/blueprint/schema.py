@@ -125,16 +125,31 @@ class AgentBlueprint(ImmutableRecord):
         description="Maximum execution time in seconds before forced termination."
     )
 
-    # ── Governance (Budget Only) ──────────────────────────────────────────
+    # ── Governance ────────────────────────────────────────────────────────
     governance: GovernanceConfig = Field(
         default_factory=GovernanceConfig,
         description=(
             "Blueprint-level governance configuration. "
-            "Currently includes budget enforcement only. "
-            "Sentinel and HumanGate policies live in ToolGovernanceConfig per-tool."
+            "Includes budget enforcement. "
+            "Sentinel and HumanGate defaults live below as per-blueprint fallbacks."
         )
     )
-
+    default_sentinel: StrategyConfig = Field(
+        default_factory=lambda: StrategyConfig(strategy="passthrough"),
+        description=(
+            "Sentinel strategy aplicado a tools que no declaran uno explícito. "
+            "Fallback en la cadena: tool_config.governance.sentinel → este campo → 'passthrough'. "
+            "Acepta string shorthand ('passthrough') o forma explícita con params."
+        )
+    )
+    default_human_gate: StrategyConfig = Field(
+        default_factory=lambda: StrategyConfig(strategy="auto_approve"),
+        description=(
+            "HumanGate strategy aplicado a tools que no declaran uno explícito. "
+            "Fallback en la cadena: tool_config.governance.human_gate → este campo → 'auto_approve'. "
+            "Acepta string shorthand ('auto_approve') o forma explícita con params."
+        )
+    )
     # ═══════════════════════════════════════════════════════════════════════
     # THE SUGAR BOWL (YAML Ergonomics)
     # ═══════════════════════════════════════════════════════════════════════
