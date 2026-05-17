@@ -15,6 +15,7 @@ from pydantic import (
     ValidationInfo,
     computed_field,
     field_validator,
+    model_validator
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -100,6 +101,13 @@ class Settings(BaseSettings):
     # LLM PROVIDER API KEYS
     # ==========================================================================
     OPENAI_API_KEY: Optional[SecretStr] = None
+    GEMINI_API_KEY_FILE: Optional[str] = None
+    GROQ_API_KEY: Optional[SecretStr] = None
+    GROQ_API_KEY_FILE: Optional[str] = None
+    SAMBANOVA_API_KEY: Optional[SecretStr] = None
+    SAMBANOVA_API_KEY_FILE: Optional[str] = None
+    GITHUB_TOKEN: Optional[SecretStr] = None
+    GITHUB_TOKEN_FILE: Optional[str] = None
     GEMINI_API_KEY: Optional[SecretStr] = None
     ANTHROPIC_API_KEY: Optional[SecretStr] = None
 
@@ -200,6 +208,42 @@ class Settings(BaseSettings):
             auth_string = f":{password}@"
 
         return f"redis://{auth_string}{self.REDIS_HOST}:{self.REDIS_PORT}/0"
+    
+    @model_validator(mode='after')
+    def load_api_keys_from_secrets(self) -> 'Settings':
+        # --- Lógica para Gemini ---
+        if self.GEMINI_API_KEY_FILE:
+            try:
+                with open(self.GEMINI_API_KEY_FILE, "r") as f:
+                    self.GEMINI_API_KEY = SecretStr(f.read().strip())
+            except FileNotFoundError:
+                pass # O maneja el error según prefieras
+
+        # --- Lógica para Groq (AÑADE ESTO) ---
+        if self.GROQ_API_KEY_FILE:
+            try:
+                with open(self.GROQ_API_KEY_FILE, "r") as f:
+                    # Sobrescribimos la variable GROQ_API_KEY con el contenido del archivo
+                    self.GROQ_API_KEY = SecretStr(f.read().strip())
+            except FileNotFoundError:
+                pass
+
+        if self.SAMBANOVA_API_KEY_FILE:
+            try:
+                with open(self.SAMBANOVA_API_KEY_FILE, "r") as f:
+                    # Sobrescribimos la variable GROQ_API_KEY con el contenido del archivo
+                    self.SAMBANOVA_API_KEY = SecretStr(f.read().strip())
+            except FileNotFoundError:
+                pass
+
+        if self.GITHUB_TOKEN_FILE:
+            try:
+                with open(self.GITHUB_TOKEN_FILE, "r") as f:
+                    self.GITHUB_TOKEN = SecretStr(f.read().strip())
+            except FileNotFoundError:
+                pass
+        
+        return self
 
 
 # ==============================================================================

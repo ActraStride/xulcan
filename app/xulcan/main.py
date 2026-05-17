@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from xulcan.api.middleware import RequestCorrelationMiddleware
 from xulcan.config import Settings, get_settings
-from xulcan.core.logging_config import (
+from xulcan.logging_config import (
     configure_structlog_wrapper,
     get_logger,
     get_logging_config,

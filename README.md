@@ -1,226 +1,392 @@
-# Xulcan
+<div align="center">
 
-<p align="center">
-    <a href="../README.md">English 🇬🇧</a>
-    · <a href="docs/README.es.md">Spanish 🇲🇽</a>
-</p>
+# 🌋 Xulcan OS
 
-**API-first backend framework for building AI agents with LLM orchestration, memory management, and tool execution.**
+### Event-Sourced, Governance-First Runtime for AI Agent Systems
 
-[![License](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Architecture: Event Sourcing](https://img.shields.io/badge/Architecture-Event%20Sourcing-orange.svg)]()
+[![License: AGPLv3](https://img.shields.io/badge/license-AGPLv3-green.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html)
 
----
+Declarative agents, deterministic orchestration, and resumable execution.
 
-## Quick Start
+[Overview](#-overview) •
+[Architecture](#-architectural-model) •
+[Features](#-core-features) •
+[Quickstart](#-quickstart) •
+[Project Structure](#-project-structure)
 
-### Prerequisites
-- Docker & Docker Compose
-- Make (Standard in Linux/Mac. Windows users can use WSL2 or Git Bash)
-- Python 3.11+ (recommended for local tooling)
-
-### Setup (2 minutes)
-
-We use a `Makefile` to standardize development tasks. No more loose scripts.
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/ActraStride/xulcan.git
-cd xulcan
-
-# 2. Setup environment (Generates secrets, .env, and builds images)
-make setup
-
-# 3. Start services in background
-make dev
-
-# 4. Verify installation
-curl http://localhost:8000/health/live
-```
-
-### Access Points
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **API** | http://localhost:8000 | - |
-| **API Docs** | http://localhost:8000/docs | - |
-| **pgAdmin** | http://localhost:5050 | `admin@xulcan.dev` / (see `.secrets/pgadmin_password`) |
-| **Redis Insight** | http://localhost:5540 | Configure manually on first access |
+</div>
 
 ---
 
-## Developer Interface (Make)
+# 📖 Overview
 
-We provide a robust `Makefile` to handle common tasks. Run `make help` to see all commands.
+Most modern AI frameworks treat agents as application code tightly coupled to:
+- prompts,
+- infrastructure,
+- provider clients,
+- execution state,
+- persistence,
+- and runtime orchestration.
 
-| Command | Description |
-|---------|-------------|
-| `make setup` | Generates secrets, `.env` file, and builds Docker images. |
-| `make dev` | Starts the full stack (API + DB + Tools) and tails logs. |
-| `make up` | Starts the stack in detached mode (silent). |
-| `make stop` | Stops containers without removing them. |
-| `make clean` | **Destructive**. Removes containers, volumes, and local cache. |
-| `make test` | Runs the pytest suite inside the container. |
-| `make shell` | Opens a bash shell inside the API container. |
-| `make db-shell`| Opens a `psql` session directly to the database. |
+This makes systems difficult to:
+- audit,
+- migrate,
+- scale,
+- suspend,
+- resume,
+- or govern safely.
 
----
+**Xulcan** approaches the problem differently.
 
-## Architecture
+Agents are treated as **declarative runtime entities** rather than imperative code objects.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     FastAPI Application                 │
-│                                                         │
-│  • REST API (Universal Executor)                        │
-│  • Health checks (/health/live)                         │
-│  • Structured logging (JSON/Console)                    │
-└───────────────────┬─────────────────────────────────────┘
-                    │
-        ┌───────────┴───────────┐
-        │                       │
-┌───────▼────────┐    ┌─────────▼───────┐
-│   PostgreSQL   │    │      Redis      │
-│ (Vectors/Data) │    │ (Cache/Queue)   │
-└────────────────┘    └─────────────────┘
-```
+The system is built around:
+- finite-state orchestration,
+- event sourcing,
+- hierarchical governance,
+- runtime assembly,
+- and distributed suspension/resume semantics.
 
-### Core Components
-
-- **FastAPI**: Async REST API with automatic OpenAPI docs.
-- **PostgreSQL**: Primary data store. Will support `pgvector` for RAG.
-- **Redis**: High-performance caching, rate limiting, and task queue broker.
-- **Arq**: (Planned) Async job queue built on Redis for background agent reasoning.
-- **Docker Secrets**: Secure credential management for production-grade security.
+The result is a runtime capable of executing long-running AI workflows with:
+- deterministic behavior,
+- infrastructure portability,
+- auditability,
+- and governance boundaries.
 
 ---
 
-## Configuration
+# 🏛️ Architectural Model
 
-### Environment Variables
+Xulcan is structured around three isolated architectural domains.
 
-Configuration is managed via `.env` file (created automatically by `make setup`) and Docker Secrets.
+---
 
-```bash
-# Application
-APP_ENV=development
-LOG_LEVEL=debug
+## 🧠 Blueprint — Cognition
 
-# Database & Redis
-POSTGRES_USER=xulcan
-POSTGRES_DB=xulcan_core
-REDIS_PORT=6379
+Defines:
+- what an agent is,
+- how it behaves,
+- which model it uses,
+- what tools it can access,
+- and how governance applies to it.
 
-# AI Providers (Get your own keys)
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
+Blueprints are fully declarative (`YAML`) and portable across environments.
 
-### Secrets Management
+They contain:
+- prompts,
+- tool declarations,
+- context strategies,
+- fallback chains,
+- governance rules,
+- lifecycle hooks.
 
-Sensitive passwords are **never** stored in environment variables. They are managed via files in `.secrets/` mounted directly into containers.
+Blueprints contain no infrastructure configuration.
 
-To regenerate secrets (e.g., if you forgot the pgAdmin password):
+---
 
-```bash
-# Warning: This overwrites existing secrets
-rm .secrets/*
-make setup
+## 📜 Ledger — Time
+
+Xulcan uses an event-sourced execution model.
+
+Instead of storing only final state, the system records every runtime event:
+- `RunCreated`
+- `ModelResponse`
+- `ToolExecuted`
+- `RunSuspended`
+- `RunFailed`
+- etc.
+
+This enables:
+- full auditability,
+- deterministic replay,
+- runtime introspection,
+- and debugging through execution history.
+
+Events are strongly typed using Pydantic polymorphism.
+
+---
+
+## 🏗️ Infraprint — Infrastructure
+
+Defines where and how the system runs.
+
+Infrastructure concerns are isolated from agent cognition:
+- secret management,
+- event buses,
+- state stores,
+- ledgers,
+- provider configuration,
+- persistence drivers.
+
+An agent can move from:
+- local memory,
+- to Redis/Postgres,
+- to distributed cloud infrastructure
+
+without modifying the Blueprint itself.
+
+---
+
+# 🚀 Core Features
+
+## 🛡️ Governance System
+
+Governance is a first-class runtime concern.
+
+### Sentinel — Policy Enforcement
+
+Inspects tool calls before execution.
+
+Supports:
+- allowlists,
+- blocklists,
+- recursive payload inspection,
+- escalation flows,
+- policy-based execution control.
+
+---
+
+### HumanGate — Human-in-the-Loop Execution
+
+When a tool call requires approval:
+1. the Kernel suspends execution,
+2. serializes FSM state,
+3. releases the worker,
+4. waits for external approval,
+5. rehydrates execution through `resume_run()`.
+
+Long-running approval flows do not block compute resources.
+
+---
+
+### Bursar — Capacity Governance
+
+Controls runtime consumption through:
+- token budgets,
+- latency budgets,
+- hierarchical limits.
+
+Supports:
+- warnings,
+- hard halts,
+- app-level ceilings,
+- agent-level limits,
+- compiled governance resolution.
+
+---
+
+## 🧠 LLM Orchestration
+
+### Automatic Fallback Chains
+
+If a provider fails due to:
+- rate limits,
+- transient failures,
+- provider instability,
+
+Xulcan can automatically transition to fallback providers.
+
+---
+
+### Local Model Compatibility
+
+Supports adaptive tool calling strategies for providers lacking native function calling support.
+
+Includes:
+- structured JSON coercion,
+- prompt-injected tool protocols,
+- reasoning sanitization.
+
+---
+
+## 🌐 Multi-Agent Runtime
+
+### Sub-Agent Composition
+
+Agents can invoke other agents as tools.
+
+Supports:
+- nested execution,
+- isolated governance,
+- shared runtime infrastructure,
+- contextual memory transfer.
+
+---
+
+### Ephemeral Sandboxes
+
+Tool execution can run inside isolated environments with:
+- CPU quotas,
+- memory limits,
+- session teardown,
+- runtime isolation.
+
+---
+
+## 📡 Event Bus
+
+All runtime events can be emitted into:
+- IPC channels,
+- firehose streams,
+- reactive monitoring systems.
+
+Supports real-time telemetry and distributed orchestration.
+
+---
+
+# ⚡ Quickstart
+
+## 1. Define an Agent Blueprint
+
+```yaml
+# app/blueprints/support_agent.xul.yml
+
+xulcan_version: "2.0"
+
+id: "support_agent"
+name: "Alice"
+
+description: "Refund support agent"
+
+model: "openai/gpt-4o"
+
+fallbacks:
+  - "groq/llama3-70b-8192"
+
+system_prompt: |
+  You are a support agent.
+  User profile:
+  {{ user_profile }}
+
+tools:
+  - "search_docs"
+
+  - name: "issue_refund"
+    governance:
+      human_gate: "terminal"
+      sentinel: "blocklist"
+      side_effects: "write"
+
+governance:
+  budget:
+    enforced:
+      token_limit: 10000
+      warn_at_percent: 0.8
+
+lifecycle:
+  on_start:
+    - "fetch_user_db -> user_profile"
+````
+
+---
+
+## 2. Configure Infrastructure
+
+```yaml
+# Xulcanfile
+
+version: "1.0.0"
+
+kernel:
+  vault:
+    driver: "env"
+
+  state_store:
+    driver: "memory"
+
+  ledger:
+    driver: "memory"
+
+providers:
+  llm:
+    default: "openai"
+
+    instances:
+      openai:
+        driver: "openai"
+        model: "gpt-4o"
 ```
 
 ---
 
-## Project Structure
+## 3. Run the System
 
+```python
+import asyncio
+
+from xulcan.app import Xulcan
+
+
+async def main():
+    os = await Xulcan.from_manifest("Xulcanfile")
+
+    @os.tool(description="Fetch user profile")
+    async def fetch_user_db(user_id: str, state_store, run_id):
+        return {
+            "name": "Juan",
+            "plan": "Premium"
+        }
+
+    blueprint = os.agent_registry["support_agent"]
+
+    run_id, response = await os.run(
+        prompt="I want to cancel my account and request a refund.",
+        agent_id="user-123",
+        blueprint=blueprint
+    )
+
+    print(response)
+
+    audit = await os.get_audit(run_id)
+
+    print(
+        audit["summary"]["total_usage"]["total_tokens"]
+    )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
+
+---
+
+# 📂 Project Structure
+
+```text
 xulcan/
-├── app/
-│   └── xulcan/
-│       ├── main.py              # Application entry point
-│       ├── config.py            # Pydantic settings
-│       └── core/                # Core logic
-├── scripts/
-│   └── setup_dev_secrets.sh     # Secret generation logic
-├── tests/                       # Pytest suite
-├── docker-compose.yaml          # Orchestration
-├── Makefile                     # Developer Task Runner
-├── pytest.ini                   # Test configuration
-└── README.md
+├── core/         # Immutable primitives and usage metrics
+├── protocol/     # Universal IO contracts and message schemas
+├── blueprint/    # Declarative agent schemas and YAML parsing
+├── manifest/     # Infrastructure topology definitions
+├── runtime/      # Runtime assembly and dependency injection
+├── kernel/       # FSM orchestration and execution engine
+├── governance/   # Bursar, Sentinel, HumanGate
+├── context/      # Context windowing and sanitization
+├── llm/          # Provider adapters and fallback orchestration
+├── tools/        # Tool router, sandboxes, sub-agents
+├── memory/       # StateStore and Vault implementations
+├── ledger/       # Event sourcing and projections
+└── signals/      # IPC and firehose event streams
 ```
 
 ---
 
-## Deployment
+# 🛡️ Security & Isolation
 
-### Production Checklist
-
-- [ ] Set `ENVIRONMENT=production` in `.env`.
-- [ ] Use `make setup` on the server to generate unique secrets.
-- [ ] Set strict firewall rules for Redis and Postgres ports.
-- [ ] Configure a reverse proxy (Nginx/Traefik) with SSL.
-- [ ] Use an external Secret Manager (like Infisical) for API Keys.
-
-### Docker Production Build
-
-```bash
-# Build production image
-docker build -t xulcan-api:latest .
-
-# Run with production secrets
-docker run -d \
-  -p 8000:8000 \
-  -e ENVIRONMENT=production \
-  --secret postgres_password \
-  --secret redis_password \
-  xulcan-api:latest
-```
+* Secrets are injected through infrastructure drivers, never exposed to models.
+* Governance policies execute before side-effectful tool calls.
+* Suspended runs release workers completely.
+* FSM state can be rehydrated across distributed nodes.
+* Recursive payload inspection prevents deeply nested injection patterns.
+* Runtime execution can be isolated through ephemeral sandboxes.
 
 ---
 
-## Roadmap
+# 📜 License
 
-### ✅ Completed
-- Base infrastructure (Docker, Postgres, Redis).
-- **Developer Experience**: Makefile, Healthchecks, Hot-reload.
-- Security: Docker Secrets, non-root containers.
-- Development tools: pgAdmin, Redis Insight.
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 
-### 🚧 In Progress (Q1 2025)
-- **Universal Executor**: No-code tool execution engine.
-- **Agent Registry**: Database schema for defining agents via JSON/YAML.
-- **Auth Gateway**: Integration with Vault/Infisical for tool authentication.
-
-### 📋 Planned (Q2 2025)
-- **RAG Integration**: Native `pgvector` support.
-- **Async Reasoning**: Background workers using **Arq**.
-- **Admin Dashboard**: Web UI to manage agents and view metrics.
-
----
-
-## Troubleshooting
-
-### Services behave unexpectedly
-Run a full clean restart to ensure no stale volumes exist:
-```bash
-make clean
-make setup
-make dev
-```
-
-### "Redis is unhealthy"
-Ensure you ran `make setup` to generate the `.secrets/redis_password` file. The container requires this file to pass health checks.
-
-### Port conflicts
-If ports 8000, 5432, or 6379 are taken, modify the `.env` file generated by `make setup`.
-
----
-
-## License
-
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPLv3)** - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Status**: 🚀 Active Development | **Version**: 0.2.0-alpha
+Xulcan is free software designed for transparent, auditable,
+and governable AI infrastructure.

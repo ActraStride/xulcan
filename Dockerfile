@@ -87,4 +87,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD /app/.venv/bin/python /app/healthcheck.py || exit 1
 
 # [RUN] Start the ASGI server.
-CMD ["uvicorn", "xulcan.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "xulcan.mack:app", "--host", "0.0.0.0", "--port", "2012"]
